@@ -1,0 +1,26 @@
+# Copia este archivo como application-local.properties (ignorado por git) y pon aqui tus valores reales.
+# Se activa corriendo con: mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=local
+
+DB_PASSWORD=changeme
+APP_JWT_SECRET=changeme-generate-a-long-random-string
+
+# Correo (opcional). Si no se llenan, app.mail.enabled debe quedar en false y el sistema sigue
+# funcionando: los correos se registran en el log pero no bloquean el flujo (igual que el patron del POS).
+MAIL_ENABLED=false
+MAIL_USERNAME=
+MAIL_PASSWORD=
+
+# Usuario semilla SUPER_ADMIN (se crea solo si no existe ningun usuario con este telefono)
+SEED_ADMIN_PHONE=5550000000
+SEED_ADMIN_PASSWORD=Admin123!
+SEED_ADMIN_EMAIL=apineda@bitfx.mx
+
+# Ruteo: OSRM demo publico por defecto (sin API key, solo para desarrollo - ver docs/README.md).
+# Cambiar a ROUTING_PROVIDER=mock desactiva las llamadas de red y usa Haversine puro.
+ROUTING_PROVIDER=osrm
+OSRM_BASE_URL=https://router.project-osrm.org
+
+# Geocoding: Nominatim demo publico por defecto (sin API key, solo para desarrollo).
+GEOCODING_PROVIDER=nominatim
+NOMINATIM_BASE_URL=https://nominatim.openstreetmap.org
+GEOCODING_CONTACT_EMAIL=apineda@bitfx.mx
