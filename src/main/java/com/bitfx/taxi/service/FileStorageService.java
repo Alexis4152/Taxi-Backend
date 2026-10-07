@@ -7,6 +7,8 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
@@ -50,6 +52,12 @@ public class FileStorageService {
     }
 
     private void validateIsRealImage(MultipartFile file) {
+        // ImageIO del JDK no trae lector de WEBP (read() regresa null), asi que ahi solo se valida
+        // la firma binaria del archivo ("RIFF....WEBP") en vez de decodificarlo.
+        if ("image/webp".equals(file.getContentType())) {
+            validateWebpSignature(file);
+            return;
+        }
         BufferedImage image;
         try {
             image = ImageIO.read(file.getInputStream());
@@ -61,6 +69,22 @@ public class FileStorageService {
         }
         if (image.getWidth() < MIN_DIMENSION_PX || image.getHeight() < MIN_DIMENSION_PX) {
             throw new IllegalArgumentException("La imagen es demasiado pequena (minimo " + MIN_DIMENSION_PX + "x" + MIN_DIMENSION_PX + " px)");
+        }
+    }
+
+    private void validateWebpSignature(MultipartFile file) {
+        byte[] header = new byte[12];
+        int read;
+        try (InputStream in = file.getInputStream()) {
+            read = in.readNBytes(header, 0, header.length);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("No se pudo leer el archivo como imagen");
+        }
+        boolean isWebp = read == header.length
+                && new String(header, 0, 4, StandardCharsets.US_ASCII).equals("RIFF")
+                && new String(header, 8, 4, StandardCharsets.US_ASCII).equals("WEBP");
+        if (!isWebp) {
+            throw new IllegalArgumentException("El archivo no es una imagen valida");
         }
     }
 }

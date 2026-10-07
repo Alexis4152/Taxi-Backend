@@ -66,6 +66,10 @@ public class SecurityConfig {
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        // Cuando un recurso permitAll (ej. /uploads/**) no existe en disco, Spring
+                        // lo reenvia internamente a /error; sin esto Security bloquea ese reenvio
+                        // y responde un 401 enganoso en lugar del 404 real.
+                        .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

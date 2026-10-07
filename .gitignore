@@ -36,3 +36,14 @@ build/
 application-local.properties
 uploads/
 
+
+### Logs ###
+*.log
+
+### Secretos / herramientas locales ###
+.env
+.env.*
+!.env.example
+.claude/
+hs_err_pid*.log
+replay_pid*.log
