@@ -7,10 +7,13 @@ import com.bitfx.taxi.dto.trip.PassengerStatsDto;
 import com.bitfx.taxi.dto.trip.SendMessageRequest;
 import com.bitfx.taxi.dto.trip.TripHistoryItemDto;
 import com.bitfx.taxi.dto.trip.TripMessageDto;
+import com.bitfx.taxi.dto.trip.TripReportDto;
+import com.bitfx.taxi.dto.trip.TripReportResponse;
 import com.bitfx.taxi.dto.trip.TripRequestDto;
 import com.bitfx.taxi.dto.trip.TripResponseDto;
 import com.bitfx.taxi.model.User;
 import com.bitfx.taxi.service.TripChatService;
+import com.bitfx.taxi.service.TripReportService;
 import com.bitfx.taxi.service.TripService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +30,7 @@ public class TripController {
 
     private final TripService tripService;
     private final TripChatService tripChatService;
+    private final TripReportService tripReportService;
 
     @PostMapping
     @PreAuthorize("hasRole('PASSENGER')")
@@ -86,5 +90,12 @@ public class TripController {
                                                     Authentication authentication) {
         User user = (User) authentication.getPrincipal();
         return ApiResponse.ok(tripChatService.sendMessage(user, id, req.body()));
+    }
+
+    @PostMapping("/{id}/reports")
+    public ApiResponse<TripReportResponse> report(@PathVariable Long id, @Valid @RequestBody TripReportDto req,
+                                                   Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        return ApiResponse.ok("Tu reporte fue enviado, un administrador lo revisará", tripReportService.submit(user, id, req));
     }
 }

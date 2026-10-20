@@ -20,9 +20,18 @@ public record DriverResponse(
         String taxiUnitNumber,
         String taxiPlates,
         String taxiBrand,
-        String taxiModel
+        String taxiModel,
+        boolean online
 ) {
     public static DriverResponse from(DriverProfile d) {
+        return from(d, false);
+    }
+
+    // El propio operador necesita saber si el backend todavia lo considera "en linea" para poder
+    // restaurar ese estado al abrir/refrescar la app (ver GET /api/driver/me) - sin esto, un
+    // refresh de pagina lo deja viendose desconectado aunque la BD diga lo contrario, y deja de
+    // recibir ofertas de viaje por WebSocket hasta que vuelva a tocar "Conectarme" a mano.
+    public static DriverResponse from(DriverProfile d, boolean online) {
         return new DriverResponse(
                 d.getId(),
                 d.getUser().getId(),
@@ -41,7 +50,8 @@ public record DriverResponse(
                 d.getTaxi() != null ? d.getTaxi().getUnitNumber() : null,
                 d.getTaxi() != null ? d.getTaxi().getPlates() : null,
                 d.getTaxi() != null ? d.getTaxi().getBrand() : null,
-                d.getTaxi() != null ? d.getTaxi().getModel() : null
+                d.getTaxi() != null ? d.getTaxi().getModel() : null,
+                online
         );
     }
 }

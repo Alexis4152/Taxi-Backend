@@ -85,7 +85,10 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(List.of(allowedOrigins.split(",")));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
+        // Ya no se usan cookies para la sesion (el refresh token vive en sessionStorage del
+        // frontend, no en una cookie httpOnly - ver AuthController), asi que no hace falta que el
+        // navegador mande credenciales ambiente en peticiones cross-origin.
+        configuration.setAllowCredentials(false);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

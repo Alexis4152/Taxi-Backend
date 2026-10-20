@@ -21,25 +21,28 @@ public record TripHistoryItemDto(
         LocalDateTime acceptedAt,
         LocalDateTime completedAt,
         LocalDateTime cancelledAt,
-        String cancelledByRole
+        String cancelledByRole,
+        boolean rated
 ) {
-    public static TripHistoryItemDto forPassenger(Trip t) {
+    public static TripHistoryItemDto forPassenger(Trip t, boolean rated) {
         return new TripHistoryItemDto(
                 t.getId(), t.getOriginAddress(), t.getDestinationAddress(), t.getStatus().name(),
                 t.getEstimatedFare(), t.getPaymentMethod().name(),
                 t.getDriver() != null ? t.getDriver().getUser().getName() : null,
                 t.getRequestedAt(), t.getAcceptedAt(), t.getCompletedAt(), t.getCancelledAt(),
-                t.getCancelledByRole() != null ? t.getCancelledByRole().name() : null
+                t.getCancelledByRole() != null ? t.getCancelledByRole().name() : null,
+                rated
         );
     }
 
-    public static TripHistoryItemDto forDriver(Trip t) {
+    public static TripHistoryItemDto forDriver(Trip t, boolean rated) {
         return new TripHistoryItemDto(
                 t.getId(), t.getOriginAddress(), t.getDestinationAddress(), t.getStatus().name(),
                 t.getEstimatedFare(), t.getPaymentMethod().name(),
                 t.getPassenger().getName(),
                 t.getRequestedAt(), t.getAcceptedAt(), t.getCompletedAt(), t.getCancelledAt(),
-                t.getCancelledByRole() != null ? t.getCancelledByRole().name() : null
+                t.getCancelledByRole() != null ? t.getCancelledByRole().name() : null,
+                rated
         );
     }
 }

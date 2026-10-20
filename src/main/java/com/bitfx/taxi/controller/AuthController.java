@@ -4,67 +4,56 @@ import com.bitfx.taxi.dto.ApiResponse;
 import com.bitfx.taxi.dto.auth.*;
 import com.bitfx.taxi.model.User;
 import com.bitfx.taxi.service.AuthService;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * El refresh token viaja en el cuerpo de la peticion (lo guarda el frontend en sessionStorage,
+ * aislado por pestaña), no en una cookie httpOnly compartida por todo el navegador. Se eligio asi
+ * a proposito: con una cookie de navegador, abrir pasajero/operador/admin en pestañas distintas de
+ * un mismo navegador hacia que cada login pisara la sesion de las demas pestañas (una cookie no
+ * puede ser "por pestaña"). El costo de este cambio es que el token ya no esta protegido de
+ * JavaScript por httpOnly (ver sessionStorage en el frontend) - se acepto ese tradeoff a cambio de
+ * sesiones independientes de verdad por pestaña.
+ */
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
-    private static final String REFRESH_COOKIE = "taxi_refresh_token";
-
     private final AuthService authService;
 
-    @Value("${app.cookie.secure}")
-    private boolean cookieSecure;
-
-    @Value("${app.cookie.samesite}")
-    private String cookieSameSite;
-
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterPassengerRequest req,
-                                                               HttpServletResponse response) {
+    public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterPassengerRequest req) {
         var result = authService.registerPassenger(req);
-        setRefreshCookie(response, result.refreshToken());
-        return ResponseEntity.ok(ApiResponse.ok(new AuthResponse(result.accessToken(), result.user())));
+        return ResponseEntity.ok(ApiResponse.ok(new AuthResponse(result.accessToken(), result.refreshToken(), result.user())));
     }
 
     @PostMapping("/register-driver")
-    public ResponseEntity<ApiResponse<AuthResponse>> registerDriver(@Valid @RequestBody RegisterDriverRequest req,
-                                                                     HttpServletResponse response) {
+    public ResponseEntity<ApiResponse<AuthResponse>> registerDriver(@Valid @RequestBody RegisterDriverRequest req) {
         var result = authService.registerDriver(req);
-        setRefreshCookie(response, result.refreshToken());
-        return ResponseEntity.ok(ApiResponse.ok(new AuthResponse(result.accessToken(), result.user())));
+        return ResponseEntity.ok(ApiResponse.ok(new AuthResponse(result.accessToken(), result.refreshToken(), result.user())));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest req,
-                                                            HttpServletResponse response) {
+    public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest req) {
         var result = authService.login(req);
-        setRefreshCookie(response, result.refreshToken());
-        return ResponseEntity.ok(ApiResponse.ok(new AuthResponse(result.accessToken(), result.user())));
+        return ResponseEntity.ok(ApiResponse.ok(new AuthResponse(result.accessToken(), result.refreshToken(), result.user())));
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<AuthResponse>> refresh(@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
-        var result = authService.refresh(refreshToken);
-        return ResponseEntity.ok(ApiResponse.ok(new AuthResponse(result.accessToken(), result.user())));
+    public ResponseEntity<ApiResponse<AuthResponse>> refresh(@RequestBody RefreshRequest req) {
+        var result = authService.refresh(req.refreshToken());
+        return ResponseEntity.ok(ApiResponse.ok(new AuthResponse(result.accessToken(), req.refreshToken(), result.user())));
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken,
-                                                      HttpServletResponse response) {
-        authService.logout(refreshToken);
-        clearRefreshCookie(response);
+    public ResponseEntity<ApiResponse<Void>> logout(@RequestBody(required = false) RefreshRequest req) {
+        authService.logout(req != null ? req.refreshToken() : null);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
@@ -99,27 +88,5 @@ public class AuthController {
             throw new AuthenticationCredentialsNotFoundException("No autenticado");
         }
         return user;
-    }
-
-    private void setRefreshCookie(HttpServletResponse response, String value) {
-        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE, value)
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .sameSite(cookieSameSite)
-                .path("/api/auth")
-                .maxAge(60L * 60 * 8)
-                .build();
-        response.addHeader("Set-Cookie", cookie.toString());
-    }
-
-    private void clearRefreshCookie(HttpServletResponse response) {
-        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE, "")
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .sameSite(cookieSameSite)
-                .path("/api/auth")
-                .maxAge(0)
-                .build();
-        response.addHeader("Set-Cookie", cookie.toString());
     }
 }

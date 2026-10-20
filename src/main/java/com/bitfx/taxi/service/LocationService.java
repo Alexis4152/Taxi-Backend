@@ -10,13 +10,17 @@ import com.bitfx.taxi.repository.DriverLocationRepository;
 import com.bitfx.taxi.repository.DriverProfileRepository;
 import com.bitfx.taxi.repository.TripRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LocationService {
@@ -28,6 +32,9 @@ public class LocationService {
     private final TripRepository tripRepository;
     private final TripNotifier tripNotifier;
     private final TripService tripService;
+
+    @Value("${app.driver.stale-timeout-minutes}")
+    private long staleTimeoutMinutes;
 
     @Transactional
     public void ping(User driverUser, LocationPingRequest req) {
@@ -60,6 +67,24 @@ public class LocationService {
             loc.setUpdatedAt(LocalDateTime.now());
             driverLocationRepository.save(loc);
         });
+    }
+
+    /**
+     * Si un operador deja de mandar ping (cerro la app, se quedo sin bateria/señal) sin pasar por
+     * goOffline, su fila se quedaria "en linea" para siempre y seguiria recibiendo ofertas de
+     * viajes que ya no podria atender. Aqui se revisa periodicamente y se marca fuera de linea a
+     * quien no reporte ubicacion en mas de app.driver.stale-timeout-minutes.
+     */
+    @Scheduled(fixedRateString = "${app.driver.stale-check-interval-ms}")
+    @Transactional
+    public void markStaleDriversOffline() {
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(staleTimeoutMinutes);
+        List<DriverLocation> stale = driverLocationRepository.findByOnlineTrueAndUpdatedAtBefore(cutoff);
+        if (stale.isEmpty()) return;
+        stale.forEach(loc -> loc.setOnline(false));
+        driverLocationRepository.saveAll(stale);
+        log.info("{} operador(es) marcado(s) fuera de linea por inactividad (sin ping hace mas de {} min)",
+                stale.size(), staleTimeoutMinutes);
     }
 
     private DriverProfile resolveDriver(User user) {

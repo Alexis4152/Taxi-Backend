@@ -1,7 +1,6 @@
 package com.bitfx.taxi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -44,17 +43,24 @@ class AuthIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        Cookie refreshCookie = registerResult.getResponse().getCookie("taxi_refresh_token");
-        assertNotNull(refreshCookie, "El registro debe dejar la cookie de refresh (httpOnly)");
+        String responseBody = registerResult.getResponse().getContentAsString();
+        String refreshToken = objectMapper.readTree(responseBody).at("/data/refreshToken").asText(null);
+        assertNotNull(refreshToken, "El registro debe devolver el refresh token en el cuerpo (lo guarda el frontend en sessionStorage)");
 
-        // Peticion nueva e independiente, solo con la cookie (simula recargar la pagina: el
-        // navegador ya no tiene el access token en memoria, solo la cookie).
-        mockMvc.perform(post("/api/auth/refresh").cookie(refreshCookie))
+        // Peticion nueva e independiente, solo con el refresh token (simula recargar la pagina: el
+        // navegador ya no tiene el access token en memoria, solo lo que haya en sessionStorage).
+        String refreshBody = objectMapper.writeValueAsString(new RefreshPayload(refreshToken));
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(refreshBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.accessToken").exists())
                 .andExpect(jsonPath("$.data.user.phone").value(phone));
     }
 
     private record RegisterPayload(String name, String phone, String password, String email, boolean acceptedTerms) {
+    }
+
+    private record RefreshPayload(String refreshToken) {
     }
 }

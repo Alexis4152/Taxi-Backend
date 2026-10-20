@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -45,6 +47,7 @@ public class TripService {
     private final DriverLocationRepository driverLocationRepository;
     private final DriverProfileRepository driverProfileRepository;
     private final PassengerProfileRepository passengerProfileRepository;
+    private final RatingRepository ratingRepository;
     private final RoutingService routingService;
     private final FareService fareService;
     private final TripNotifier tripNotifier;
@@ -67,6 +70,12 @@ public class TripService {
 
     @Value("${app.dispatch.retry-max-attempts}")
     private int retryMaxAttempts;
+
+    @Value("${app.trip.geofence-radius-meters}")
+    private double geofenceRadiusMeters;
+
+    @Value("${app.trip.location-staleness-seconds}")
+    private long locationStalenessSeconds;
 
     @Transactional
     public TripResponseDto requestTrip(User passenger, TripRequestDto req) {
@@ -273,7 +282,15 @@ public class TripService {
         trip.setStatus(TripStatus.ACCEPTED);
         trip.setAcceptedAt(LocalDateTime.now());
         trip.setEstimatedFare(fareService.estimateFare(driver.getOrganization(), trip.getDistanceKm()));
-        trip = tripRepository.save(trip);
+        try {
+            // saveAndFlush (no solo save) para que un conflicto de version se detecte AQUI, en
+            // vez de hasta el commit de la transaccion (fuera de este try/catch).
+            trip = tripRepository.saveAndFlush(trip);
+        } catch (OptimisticLockingFailureException e) {
+            // Dos operadores aceptaron casi al mismo tiempo: ambos pasaron la validacion de
+            // arriba (el otro aun no habia comiteado), pero solo uno puede ganar el guardado.
+            throw new ApiException(HttpStatus.CONFLICT, "El viaje ya fue tomado por otro operador");
+        }
 
         closeOtherOffers(trip, offer.getId());
         closeOtherPendingOffersForDriver(driver, offer.getId());
@@ -314,6 +331,8 @@ public class TripService {
         if (trip.getStatus() != TripStatus.ACCEPTED) {
             throw new ApiException(HttpStatus.CONFLICT, "El viaje no esta listo para iniciar");
         }
+        requireDriverNear(driver, trip.getOriginLat(), trip.getOriginLng(),
+                "Debes estar cerca del punto de recogida para iniciar el viaje");
         trip.setStatus(TripStatus.IN_PROGRESS);
         trip.setStartedAt(LocalDateTime.now());
         trip = tripRepository.save(trip);
@@ -330,6 +349,8 @@ public class TripService {
         if (trip.getStatus() != TripStatus.IN_PROGRESS) {
             throw new ApiException(HttpStatus.CONFLICT, "El viaje no esta en curso");
         }
+        requireDriverNear(driver, trip.getDestinationLat(), trip.getDestinationLng(),
+                "Debes estar cerca del destino para finalizar el viaje");
         trip.setStatus(TripStatus.COMPLETED);
         trip.setCompletedAt(LocalDateTime.now());
         if (trip.getPaymentMethod() == PaymentMethod.CASH) {
@@ -424,20 +445,43 @@ public class TripService {
     }
 
     public PassengerStatsDto getPassengerStats(User passenger) {
-        return new PassengerStatsDto(tripRepository.countByPassenger(passenger));
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+        LocalDateTime endOfDay = startOfDay.plusDays(1);
+
+        long totalTrips = tripRepository.countByPassenger(passenger);
+        long completedToday = tripRepository.countByPassengerAndStatusAndCompletedAtBetween(passenger, TripStatus.COMPLETED, startOfDay, endOfDay);
+        long cancelledByDriverToday = tripRepository.countByPassengerAndStatusAndCancelledByRoleAndCancelledAtBetween(
+                passenger, TripStatus.CANCELLED, CancelledBy.DRIVER, startOfDay, endOfDay);
+        long cancelledByMeToday = tripRepository.countByPassengerAndStatusAndCancelledByRoleAndCancelledAtBetween(
+                passenger, TripStatus.CANCELLED, CancelledBy.PASSENGER, startOfDay, endOfDay);
+
+        return new PassengerStatsDto(totalTrips, completedToday, cancelledByDriverToday, cancelledByMeToday);
     }
 
     public List<TripHistoryItemDto> getMyTripHistoryAsPassenger(User passenger) {
-        return tripRepository.findByPassengerOrderByRequestedAtDesc(passenger).stream()
-                .map(TripHistoryItemDto::forPassenger)
+        List<Trip> trips = tripRepository.findByPassengerOrderByRequestedAtDesc(passenger);
+        Set<Long> ratedTripIds = ratedTripIds(trips, RatingDirection.PASSENGER_TO_DRIVER);
+        return trips.stream()
+                .map(t -> TripHistoryItemDto.forPassenger(t, ratedTripIds.contains(t.getId())))
                 .toList();
     }
 
     public List<TripHistoryItemDto> getMyTripHistoryAsDriver(User driverUser) {
         DriverProfile driver = resolveDriver(driverUser);
-        return tripRepository.findByDriverOrderByRequestedAtDesc(driver).stream()
-                .map(TripHistoryItemDto::forDriver)
+        List<Trip> trips = tripRepository.findByDriverOrderByRequestedAtDesc(driver);
+        Set<Long> ratedTripIds = ratedTripIds(trips, RatingDirection.DRIVER_TO_PASSENGER);
+        return trips.stream()
+                .map(t -> TripHistoryItemDto.forDriver(t, ratedTripIds.contains(t.getId())))
                 .toList();
+    }
+
+    // Trae en una sola consulta que viajes del historial ya tienen calificacion en la direccion
+    // pedida, para no hacer una consulta por viaje (N+1) al armar la lista.
+    private Set<Long> ratedTripIds(List<Trip> trips, RatingDirection direction) {
+        if (trips.isEmpty()) return Set.of();
+        return ratingRepository.findByTripInAndDirection(trips, direction).stream()
+                .map(r -> r.getTrip().getId())
+                .collect(java.util.stream.Collectors.toSet());
     }
 
     public TripResponseDto getMyActiveTripAsPassenger(User passenger) {
@@ -587,6 +631,27 @@ public class TripService {
     private void requireOwnerDriver(Trip trip, DriverProfile driver) {
         if (trip.getDriver() == null || !trip.getDriver().getId().equals(driver.getId())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "No eres el operador asignado a este viaje");
+        }
+    }
+
+    /**
+     * Exige que la ultima ubicacion conocida del operador (la misma que ya se actualiza en cada
+     * ping de GPS, cada ~5s mientras esta en linea) este a lo mas a geofenceRadiusMeters del punto
+     * pedido. No se le pide al frontend una lectura de GPS nueva en el momento del clic - se
+     * reusa la que ya existe, con una ventana de frescura (locationStalenessSeconds) para no usar
+     * un dato viejo si el operador perdio señal.
+     */
+    private void requireDriverNear(DriverProfile driver, double targetLat, double targetLng, String tooFarMessage) {
+        DriverLocation location = driverLocationRepository.findByDriver(driver)
+                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,
+                        "No se pudo obtener tu ubicacion, activa el GPS e intenta de nuevo"));
+        if (location.getUpdatedAt().isBefore(LocalDateTime.now().minusSeconds(locationStalenessSeconds))) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "No se pudo confirmar tu ubicacion actual, espera a tener señal GPS e intenta de nuevo");
+        }
+        double distanceMeters = GeoUtils.haversineKm(targetLat, targetLng, location.getLat(), location.getLng()) * 1000;
+        if (distanceMeters > geofenceRadiusMeters) {
+            throw new ApiException(HttpStatus.CONFLICT, tooFarMessage);
         }
     }
 }

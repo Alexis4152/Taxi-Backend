@@ -32,6 +32,11 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
     long countByDriverAndStatusAndCancelledByRoleAndCancelledAtBetween(
             DriverProfile driver, TripStatus status, CancelledBy cancelledByRole, LocalDateTime from, LocalDateTime to);
 
+    long countByPassengerAndStatusAndCompletedAtBetween(User passenger, TripStatus status, LocalDateTime from, LocalDateTime to);
+
+    long countByPassengerAndStatusAndCancelledByRoleAndCancelledAtBetween(
+            User passenger, TripStatus status, CancelledBy cancelledByRole, LocalDateTime from, LocalDateTime to);
+
     @Query("select coalesce(sum(t.estimatedFare), 0) from Trip t "
             + "where t.driver = :driver and t.status = :status and t.completedAt between :from and :to")
     BigDecimal sumEarningsForDriverBetween(@Param("driver") DriverProfile driver, @Param("status") TripStatus status,

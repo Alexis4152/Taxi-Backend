@@ -44,6 +44,13 @@ public class EmailService {
     }
 
     @Async
+    public void sendPassengerWelcomeEmail(String toEmail, String name) {
+        String body = "Hola " + name + ", tu cuenta de pasajero en NexoraTaxis ya esta activa.\n\n" +
+                "Ya puedes solicitar un taxi cuando lo necesites.";
+        send(toEmail, "Bienvenido a NexoraTaxis", body);
+    }
+
+    @Async
     public void sendDriverWelcomeEmail(String toEmail, String name, String phone, String temporaryPassword) {
         String body = "Hola " + name + ", se creo tu acceso de operador en NexoraTaxis.\n\n" +
                 "Telefono (usuario): " + phone + "\n" +

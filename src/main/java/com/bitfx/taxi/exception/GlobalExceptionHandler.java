@@ -2,6 +2,7 @@ package com.bitfx.taxi.exception;
 
 import com.bitfx.taxi.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -42,6 +43,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Object>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error("No tienes permiso para esta accion"));
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<Object>> handleOptimisticLock(OptimisticLockingFailureException ex) {
+        // Red de seguridad: si un conflicto de version se detecta hasta el commit de la
+        // transaccion (fuera del try/catch puntual del service), no debe llegar como 500.
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error("Esta accion ya no esta disponible, alguien mas la realizo primero"));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

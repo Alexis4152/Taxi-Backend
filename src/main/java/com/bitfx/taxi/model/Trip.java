@@ -19,6 +19,14 @@ public class Trip {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Bloqueo optimista: si dos operadores aceptan casi al mismo tiempo el mismo viaje, ambos
+    // pasan la validacion inicial (ambos leen el mismo status/version), pero solo el primero en
+    // guardar tiene exito - el segundo guardado falla aqui en vez de pisar silenciosamente al
+    // primero (ver TripService.acceptOffer).
+    @Version
+    @Builder.Default
+    private Long version = 0L;
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "passenger_id", nullable = false)
     private User passenger;

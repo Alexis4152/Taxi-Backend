@@ -13,6 +13,7 @@ import com.bitfx.taxi.dto.admin.TaxiChangeRequestResponse;
 import com.bitfx.taxi.exception.ApiException;
 import com.bitfx.taxi.model.DriverProfile;
 import com.bitfx.taxi.model.User;
+import com.bitfx.taxi.repository.DriverLocationRepository;
 import com.bitfx.taxi.repository.DriverProfileRepository;
 import com.bitfx.taxi.service.FileStorageService;
 import com.bitfx.taxi.service.LocationService;
@@ -39,6 +40,7 @@ public class DriverPortalController {
     private final TripService tripService;
     private final RatingService ratingService;
     private final DriverProfileRepository driverProfileRepository;
+    private final DriverLocationRepository driverLocationRepository;
     private final TaxiChangeRequestService taxiChangeRequestService;
     private final FileStorageService fileStorageService;
 
@@ -47,7 +49,8 @@ public class DriverPortalController {
         User user = (User) authentication.getPrincipal();
         DriverProfile driver = driverProfileRepository.findByUser_Id(user.getId())
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "No tienes un perfil de operador"));
-        return ApiResponse.ok(DriverResponse.from(driver));
+        boolean online = driverLocationRepository.findByDriver(driver).map(loc -> loc.isOnline()).orElse(false);
+        return ApiResponse.ok(DriverResponse.from(driver, online));
     }
 
     @PostMapping("/photo")

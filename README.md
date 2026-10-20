@@ -38,8 +38,6 @@ DB_PASSWORD=<password>
 APP_JWT_SECRET=<cadena aleatoria larga, minimo 64 caracteres>
 APP_CORS_ALLOWED_ORIGINS=https://taxi.nexorasistemas.com.mx
 APP_FRONTEND_URL=https://taxi.nexorasistemas.com.mx
-APP_COOKIE_SECURE=true
-APP_COOKIE_SAMESITE=None
 
 SEED_ENABLED=true                # crea el SUPER_ADMIN la primera vez; despues puede quedar en false
 SEED_ADMIN_PHONE=<telefono>

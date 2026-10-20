@@ -56,6 +56,8 @@ public class AuthService {
         PassengerProfile profile = PassengerProfile.builder().user(user).build();
         passengerProfileRepository.save(profile);
 
+        emailService.sendPassengerWelcomeEmail(req.email(), req.name());
+
         return buildAuthResult(user);
     }
 

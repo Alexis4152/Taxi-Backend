@@ -12,4 +12,5 @@ public interface RatingRepository extends JpaRepository<Rating, Long> {
     boolean existsByTripAndDirection(Trip trip, RatingDirection direction);
     Optional<Rating> findByTripAndDirection(Trip trip, RatingDirection direction);
     List<Rating> findByToUser_IdOrderByCreatedAtDesc(Long userId);
+    List<Rating> findByTripInAndDirection(List<Trip> trips, RatingDirection direction);
 }
