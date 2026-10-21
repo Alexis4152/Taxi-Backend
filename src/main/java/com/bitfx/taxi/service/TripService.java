@@ -48,6 +48,7 @@ public class TripService {
     private final DriverProfileRepository driverProfileRepository;
     private final PassengerProfileRepository passengerProfileRepository;
     private final RatingRepository ratingRepository;
+    private final PlatformSettingsService platformSettingsService;
     private final RoutingService routingService;
     private final FareService fareService;
     private final TripNotifier tripNotifier;
@@ -70,9 +71,6 @@ public class TripService {
 
     @Value("${app.dispatch.retry-max-attempts}")
     private int retryMaxAttempts;
-
-    @Value("${app.trip.geofence-radius-meters}")
-    private double geofenceRadiusMeters;
 
     @Value("${app.trip.location-staleness-seconds}")
     private long locationStalenessSeconds;
@@ -649,6 +647,7 @@ public class TripService {
             throw new ApiException(HttpStatus.CONFLICT,
                     "No se pudo confirmar tu ubicacion actual, espera a tener señal GPS e intenta de nuevo");
         }
+        int geofenceRadiusMeters = platformSettingsService.get().getTripGeofenceRadiusMeters();
         double distanceMeters = GeoUtils.haversineKm(targetLat, targetLng, location.getLat(), location.getLng()) * 1000;
         if (distanceMeters > geofenceRadiusMeters) {
             throw new ApiException(HttpStatus.CONFLICT, tooFarMessage);
