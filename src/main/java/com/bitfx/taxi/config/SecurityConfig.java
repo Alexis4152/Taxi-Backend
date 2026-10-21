@@ -85,10 +85,20 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(List.of(allowedOrigins.split(",")));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        // Ya no se usan cookies para la sesion (el refresh token vive en sessionStorage del
-        // frontend, no en una cookie httpOnly - ver AuthController), asi que no hace falta que el
-        // navegador mande credenciales ambiente en peticiones cross-origin.
-        configuration.setAllowCredentials(false);
+        // Aunque ya no se usan cookies para la sesion (el refresh token vive en sessionStorage,
+        // no en una cookie httpOnly - ver AuthController), esto DEBE quedar en true: sockjs-client
+        // (usado por el STOMP sobre WebSocket) marca "withCredentials = true" de forma fija en
+        // cualquier transporte cross-origin (xhr-streaming/xhr-polling, incluida la negociacion
+        // inicial /ws/info) - no expone ninguna opcion publica para desactivarlo. En produccion el
+        // front (taxi.nexorasistemas.com.mx) y el back (api-taxi.nexorasistemas.com.mx) estan en
+        // subdominios distintos, asi que esa peticion siempre es cross-origin: si el backend no
+        // responde "Access-Control-Allow-Credentials: true" el navegador bloquea el handshake por
+        // completo (no es opcional, lo exige el propio Fetch/CORS spec cuando el request ya trae
+        // withCredentials=true), y el operador deja de recibir ofertas de viaje por WebSocket.
+        // No reintroduce el riesgo que motivo el cambio a sessionStorage: esto solo permite que el
+        // navegador *pueda* mandar cookies si las hubiera, pero el backend no emite ninguna cookie
+        // de sesion - la autenticacion real sigue siendo el header Authorization dentro del CONNECT.
+        configuration.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
