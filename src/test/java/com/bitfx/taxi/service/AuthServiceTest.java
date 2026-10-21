@@ -24,6 +24,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -58,7 +59,7 @@ class AuthServiceTest {
 
     private void lenientDefaults() {
         lenient().when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-        lenient().when(jwtTokenProvider.generateToken(any(), any(), any())).thenReturn("fake-jwt");
+        lenient().when(jwtTokenProvider.generateToken(any(), any(), any(), anyInt())).thenReturn("fake-jwt");
         lenient().when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
@@ -67,7 +68,7 @@ class AuthServiceTest {
         when(userRepository.existsByPhone("5512345678")).thenReturn(false);
         when(passwordEncoder.encode("Password123!")).thenReturn("hashed");
 
-        var req = new RegisterPassengerRequest("Juan Perez", "5512345678", "Password123!", null, true);
+        var req = new RegisterPassengerRequest("Juan Perez", "5512345678", "Password123!", null, true, null);
         var result = authService.registerPassenger(req);
 
         assertNotNull(result.accessToken());
@@ -80,7 +81,7 @@ class AuthServiceTest {
     void noPermiteRegistrarUnTelefonoYaUsado() {
         when(userRepository.existsByPhone("5512345678")).thenReturn(true);
 
-        var req = new RegisterPassengerRequest("Juan Perez", "5512345678", "Password123!", null, true);
+        var req = new RegisterPassengerRequest("Juan Perez", "5512345678", "Password123!", null, true, null);
 
         assertThrows(ApiException.class, () -> authService.registerPassenger(req));
     }

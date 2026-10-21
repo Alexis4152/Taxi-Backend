@@ -58,6 +58,25 @@ public class User implements UserDetails {
     @Column(name = "terms_accepted_at")
     private LocalDateTime termsAcceptedAt;
 
+    // Codigo corto propio para invitar a otros (ver ReferralService); se genera una sola vez al
+    // registrarse y no cambia despues.
+    @Column(name = "referral_code", unique = true, length = 10)
+    private String referralCode;
+
+    // Si esta cuenta se registro usando el codigo de otro usuario, quien la invito - null si se
+    // registro sin codigo o el codigo no era valido (no se bloquea el registro por eso).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "referred_by_user_id")
+    private User referredBy;
+
+    // Sube en cada login exitoso (ver AuthService.login) para exigir una sola sesion activa a la
+    // vez: todo JWT lleva grabada la version vigente al emitirse (claim "sv"), y si no coincide con
+    // esta columna, se rechaza aunque no haya expirado todavia - ver JwtAuthFilter y
+    // WsAuthChannelInterceptor.
+    @Column(name = "session_version", nullable = false)
+    @Builder.Default
+    private int sessionVersion = 0;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));

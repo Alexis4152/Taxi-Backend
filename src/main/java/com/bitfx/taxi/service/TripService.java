@@ -54,9 +54,6 @@ public class TripService {
     private final TripNotifier tripNotifier;
     private final ObjectMapper objectMapper;
 
-    @Value("${app.dispatch.search-radius-km}")
-    private double searchRadiusKm;
-
     @Value("${app.dispatch.max-offers}")
     private int maxOffers;
 
@@ -104,9 +101,11 @@ public class TripService {
                 .paymentMethod(req.paymentMethod())
                 .routeGeometryJson(toJson(estimate.routeGeometry()))
                 .shareToken(java.util.UUID.randomUUID().toString().replace("-", ""))
+                .verificationCode(generateVerificationCode())
                 .babySeat(req.babySeat())
                 .moreThanFourPassengers(req.moreThanFourPassengers())
                 .hasPet(req.hasPet())
+                .requiresWheelchairAccessible(req.requiresWheelchairAccessible())
                 .specialComments(req.comments())
                 .build();
         trip = tripRepository.save(trip);
@@ -137,7 +136,7 @@ public class TripService {
     }
 
     private void dispatchToNearestDrivers(Trip trip) {
-        dispatchToNearestDrivers(trip, searchRadiusKm);
+        dispatchToNearestDrivers(trip, platformSettingsService.get().getDispatchSearchRadiusKm());
     }
 
     private void dispatchToNearestDrivers(Trip trip, double radiusKm) {
@@ -148,6 +147,7 @@ public class TripService {
         List<Object[]> candidates = driverLocationRepository.findByOnlineTrue().stream()
                 .filter(loc -> loc.getDriver().isActive())
                 .filter(loc -> loc.getDriver().getTaxi() != null)
+                .filter(loc -> !tripRef.isRequiresWheelchairAccessible() || loc.getDriver().getTaxi().isWheelchairAccessible())
                 .filter(loc -> tripRepository.findFirstByDriverAndStatusIn(loc.getDriver(), ACTIVE_STATUSES).isEmpty())
                 .filter(loc -> tripOfferRepository.findByTripAndDriver(tripRef, loc.getDriver()).isEmpty())
                 .map(loc -> new Object[]{loc, GeoUtils.haversineKm(tripRef.getOriginLat(), tripRef.getOriginLng(), loc.getLat(), loc.getLng())})
@@ -218,9 +218,11 @@ public class TripService {
         DriverLocation loc = driverLocationRepository.findByDriver(driver).orElse(null);
         if (loc == null) return;
 
+        double searchRadiusKm = platformSettingsService.get().getDispatchSearchRadiusKm();
         LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(offerTtlSeconds);
         for (Trip trip : tripRepository.findByStatus(TripStatus.SEARCHING)) {
             if (tripOfferRepository.findByTripAndDriver(trip, driver).isPresent()) continue;
+            if (trip.isRequiresWheelchairAccessible() && !driver.getTaxi().isWheelchairAccessible()) continue;
             double distanceKm = GeoUtils.haversineKm(trip.getOriginLat(), trip.getOriginLng(), loc.getLat(), loc.getLng());
             if (distanceKm > searchRadiusKm) continue;
             sendOfferToDriver(trip, loc, distanceKm, expiresAt);
@@ -237,7 +239,8 @@ public class TripService {
     public void retryTripsWithoutDrivers() {
         for (Trip trip : tripRepository.findByStatus(TripStatus.NO_DRIVERS_AVAILABLE)) {
             if (trip.getDispatchAttempts() >= retryMaxAttempts) continue;
-            double expandedRadius = searchRadiusKm * Math.pow(retryRadiusMultiplier, trip.getDispatchAttempts());
+            double expandedRadius = platformSettingsService.get().getDispatchSearchRadiusKm()
+                    * Math.pow(retryRadiusMultiplier, trip.getDispatchAttempts());
             dispatchToNearestDrivers(trip, expandedRadius);
         }
     }
@@ -322,12 +325,15 @@ public class TripService {
     }
 
     @Transactional
-    public TripResponseDto startTrip(User driverUser, Long tripId) {
+    public TripResponseDto startTrip(User driverUser, Long tripId, String verificationCode) {
         DriverProfile driver = resolveDriver(driverUser);
         Trip trip = getTrip(tripId);
         requireOwnerDriver(trip, driver);
         if (trip.getStatus() != TripStatus.ACCEPTED) {
             throw new ApiException(HttpStatus.CONFLICT, "El viaje no esta listo para iniciar");
+        }
+        if (trip.getVerificationCode() != null && !trip.getVerificationCode().equals(verificationCode)) {
+            throw new ApiException(HttpStatus.CONFLICT, "El codigo de verificacion no coincide, confirmalo con el pasajero");
         }
         requireDriverNear(driver, trip.getOriginLat(), trip.getOriginLng(),
                 "Debes estar cerca del punto de recogida para iniciar el viaje");
@@ -412,12 +418,21 @@ public class TripService {
         return toDto(trip);
     }
 
+    public String getVerificationCode(User passenger, Long tripId) {
+        Trip trip = getTrip(tripId);
+        if (!trip.getPassenger().getId().equals(passenger.getId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "No puedes ver este viaje");
+        }
+        return trip.getVerificationCode();
+    }
+
     /**
      * Taxis disponibles cerca de un punto, para dibujarlos en el mapa del pasajero mientras arma
      * su solicitud (antes de que exista un viaje). Reutiliza el mismo radio de despacho que
      * dispatchToNearestDrivers, pero es de solo lectura: no crea ofertas ni reserva a nadie.
      */
     public List<NearbyDriverDto> listNearbyAvailableDrivers(double lat, double lng) {
+        double searchRadiusKm = platformSettingsService.get().getDispatchSearchRadiusKm();
         return driverLocationRepository.findByOnlineTrue().stream()
                 .filter(loc -> loc.getDriver().isActive())
                 .filter(loc -> loc.getDriver().getTaxi() != null)
@@ -428,18 +443,26 @@ public class TripService {
     }
 
     public DriverStatsDto getDriverStats(User driverUser) {
-        DriverProfile driver = resolveDriver(driverUser);
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfDay = startOfDay.plusDays(1);
+        return getDriverStats(driverUser, startOfDay, startOfDay.plusDays(1));
+    }
 
-        long completedToday = tripRepository.countByDriverAndStatusAndCompletedAtBetween(driver, TripStatus.COMPLETED, startOfDay, endOfDay);
-        long acceptedToday = tripRepository.countByDriverAndAcceptedAtBetween(driver, startOfDay, endOfDay);
-        long cancelledByPassengerToday = tripRepository.countByDriverAndStatusAndCancelledByRoleAndCancelledAtBetween(
-                driver, TripStatus.CANCELLED, CancelledBy.PASSENGER, startOfDay, endOfDay);
-        BigDecimal earningsToday = tripRepository.sumEarningsForDriverBetween(driver, TripStatus.COMPLETED, startOfDay, endOfDay);
-        BigDecimal tipsToday = tripRepository.sumTipsForDriverBetween(driver, TripStatus.COMPLETED, startOfDay, endOfDay);
+    /**
+     * Mismo calculo que getDriverStats(driverUser), pero con un rango de fechas elegido por quien
+     * llama - usado para el panel de metas del operador ("hoy" vs "esta semana", ver
+     * DriverPortalController.stats).
+     */
+    public DriverStatsDto getDriverStats(User driverUser, LocalDateTime start, LocalDateTime end) {
+        DriverProfile driver = resolveDriver(driverUser);
 
-        return new DriverStatsDto(completedToday, acceptedToday, cancelledByPassengerToday, earningsToday, tipsToday);
+        long completed = tripRepository.countByDriverAndStatusAndCompletedAtBetween(driver, TripStatus.COMPLETED, start, end);
+        long accepted = tripRepository.countByDriverAndAcceptedAtBetween(driver, start, end);
+        long cancelledByPassenger = tripRepository.countByDriverAndStatusAndCancelledByRoleAndCancelledAtBetween(
+                driver, TripStatus.CANCELLED, CancelledBy.PASSENGER, start, end);
+        BigDecimal earnings = tripRepository.sumEarningsForDriverBetween(driver, TripStatus.COMPLETED, start, end);
+        BigDecimal tips = tripRepository.sumTipsForDriverBetween(driver, TripStatus.COMPLETED, start, end);
+
+        return new DriverStatsDto(completed, accepted, cancelledByPassenger, earnings, tips);
     }
 
     public PassengerStatsDto getPassengerStats(User passenger) {
@@ -652,5 +675,9 @@ public class TripService {
         if (distanceMeters > geofenceRadiusMeters) {
             throw new ApiException(HttpStatus.CONFLICT, tooFarMessage);
         }
+    }
+
+    private String generateVerificationCode() {
+        return String.format("%04d", new java.security.SecureRandom().nextInt(10000));
     }
 }

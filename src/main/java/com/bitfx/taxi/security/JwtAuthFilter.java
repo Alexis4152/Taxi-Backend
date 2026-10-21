@@ -33,14 +33,19 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (jwtTokenProvider.isValid(token)) {
                 Claims claims = jwtTokenProvider.parseClaims(token);
                 String phone = claims.getSubject();
+                int tokenSessionVersion = jwtTokenProvider.getSessionVersion(token);
                 if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                    userRepository.findByPhone(phone).ifPresent(user -> {
-                        UserDetails userDetails = user;
-                        UsernamePasswordAuthenticationToken authToken =
-                                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        SecurityContextHolder.getContext().setAuthentication(authToken);
-                    });
+                    userRepository.findByPhone(phone)
+                            // Si alguien inicio sesion despues en otro dispositivo, este token quedo
+                            // obsoleto de inmediato (ver User.sessionVersion) aunque no haya expirado.
+                            .filter(user -> user.getSessionVersion() == tokenSessionVersion)
+                            .ifPresent(user -> {
+                                UserDetails userDetails = user;
+                                UsernamePasswordAuthenticationToken authToken =
+                                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                                SecurityContextHolder.getContext().setAuthentication(authToken);
+                            });
                 }
             }
         }

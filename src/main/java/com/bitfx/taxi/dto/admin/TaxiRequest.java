@@ -7,6 +7,7 @@ public record TaxiRequest(
         @NotBlank(message = "Las placas son obligatorias") String plates,
         String brand,
         String model,
-        Long organizationId
+        Long organizationId,
+        boolean wheelchairAccessible
 ) {
 }

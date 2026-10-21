@@ -65,6 +65,11 @@ public class WsAuthChannelInterceptor implements ChannelInterceptor {
         }
         User user = userRepository.findByPhone(jwtTokenProvider.getSubject(token))
                 .orElseThrow(() -> new MessagingException("Usuario no encontrado"));
+        // Mismo chequeo que JwtAuthFilter: si inicio sesion despues en otro dispositivo, este
+        // token ya no es la sesion vigente aunque no haya expirado (ver User.sessionVersion).
+        if (user.getSessionVersion() != jwtTokenProvider.getSessionVersion(token)) {
+            throw new MessagingException("Sesion cerrada desde otro dispositivo");
+        }
         return new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
     }
 

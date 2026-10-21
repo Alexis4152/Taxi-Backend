@@ -15,6 +15,9 @@ public record RegisterPassengerRequest(
         @Size(min = 8, message = "La contrasena debe tener al menos 8 caracteres")
         String password,
         @NotBlank(message = "El correo es obligatorio") @Email(message = "Correo invalido") String email,
-        @AssertTrue(message = "Debes aceptar los terminos y condiciones") boolean acceptedTerms
+        @AssertTrue(message = "Debes aceptar los terminos y condiciones") boolean acceptedTerms,
+        // Opcional: codigo de otro usuario que lo invito. Si no existe o esta mal escrito, se
+        // ignora en silencio (no bloquea el registro por un typo).
+        String referralCode
 ) {
 }

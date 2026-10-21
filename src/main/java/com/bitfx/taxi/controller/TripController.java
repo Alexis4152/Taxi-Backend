@@ -98,4 +98,15 @@ public class TripController {
         User user = (User) authentication.getPrincipal();
         return ApiResponse.ok("Tu reporte fue enviado, un administrador lo revisará", tripReportService.submit(user, id, req));
     }
+
+    // Deliberadamente aparte de getStatus()/TripResponseDto: ese DTO se manda tal cual por el
+    // WebSocket al topic compartido /topic/trip/{id}, al que tambien esta suscrito el operador -
+    // si el codigo viviera ahi, el operador lo veria sin que el pasajero se lo dijera, anulando el
+    // proposito de la verificacion. Solo el pasajero dueño del viaje puede pedir este endpoint.
+    @GetMapping("/{id}/verification-code")
+    @PreAuthorize("hasRole('PASSENGER')")
+    public ApiResponse<String> verificationCode(@PathVariable Long id, Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        return ApiResponse.ok(tripService.getVerificationCode(user, id));
+    }
 }

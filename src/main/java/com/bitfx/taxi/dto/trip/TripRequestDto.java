@@ -23,6 +23,7 @@ public record TripRequestDto(
         boolean babySeat,
         boolean moreThanFourPassengers,
         boolean hasPet,
+        boolean requiresWheelchairAccessible,
         @Size(max = 300, message = "El comentario es muy largo") String comments
 ) {
 }

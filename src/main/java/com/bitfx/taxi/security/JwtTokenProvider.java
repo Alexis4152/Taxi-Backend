@@ -22,17 +22,27 @@ public class JwtTokenProvider {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(String subjectPhone, Long userId, String role) {
+    public String generateToken(String subjectPhone, Long userId, String role, int sessionVersion) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
         return Jwts.builder()
                 .subject(subjectPhone)
                 .claim("uid", userId)
                 .claim("role", role)
+                // Version de sesion vigente del usuario al momento de emitir este token (ver
+                // User.sessionVersion / AuthService.login): si despues inicia sesion en otro
+                // dispositivo, esa version sube y este token deja de ser valido de inmediato, sin
+                // esperar a que expire solo - asi se exige una sola sesion activa a la vez.
+                .claim("sv", sessionVersion)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(key)
                 .compact();
+    }
+
+    public int getSessionVersion(String token) {
+        Object sv = parseClaims(token).get("sv");
+        return sv instanceof Number n ? n.intValue() : 0;
     }
 
     public Claims parseClaims(String token) {

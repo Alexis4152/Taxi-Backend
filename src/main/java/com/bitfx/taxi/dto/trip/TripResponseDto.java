@@ -52,7 +52,9 @@ public record TripResponseDto(
         boolean babySeat,
         boolean moreThanFourPassengers,
         boolean hasPet,
-        String specialComments
+        boolean requiresWheelchairAccessible,
+        String specialComments,
+        boolean taxiWheelchairAccessible
 ) {
     public static TripResponseDto from(Trip t, List<List<Double>> routeGeometry, PassengerProfile passengerProfile) {
         return new TripResponseDto(
@@ -98,7 +100,9 @@ public record TripResponseDto(
                 t.isBabySeat(),
                 t.isMoreThanFourPassengers(),
                 t.isHasPet(),
-                t.getSpecialComments()
+                t.isRequiresWheelchairAccessible(),
+                t.getSpecialComments(),
+                t.getTaxi() != null && t.getTaxi().isWheelchairAccessible()
         );
     }
 }

@@ -41,6 +41,7 @@ public class TaxiService {
                 .brand(req.brand())
                 .model(req.model())
                 .active(true)
+                .wheelchairAccessible(req.wheelchairAccessible())
                 .build();
         try {
             return taxiRepository.save(taxi);
@@ -56,6 +57,7 @@ public class TaxiService {
         taxi.setPlates(req.plates().toUpperCase());
         taxi.setBrand(req.brand());
         taxi.setModel(req.model());
+        taxi.setWheelchairAccessible(req.wheelchairAccessible());
         try {
             return taxiRepository.save(taxi);
         } catch (DataIntegrityViolationException e) {

@@ -142,10 +142,23 @@ public class Trip {
     @Column(name = "special_comments", length = 300)
     private String specialComments;
 
+    // Si el pasajero pidio especificamente un taxi con acceso para silla de ruedas: filtra el
+    // despacho (ver TripService.dispatchToNearestDrivers) para que solo se le ofrezca a operadores
+    // con ese tipo de taxi, en vez de ofrecerselo a cualquiera y dejar que el operador decida.
+    @Column(name = "requires_wheelchair_accessible", nullable = false)
+    @Builder.Default
+    private boolean requiresWheelchairAccessible = false;
+
     // Cuantas veces se intento despachar este viaje a operadores cercanos (el primer intento al
     // crearlo cuenta como 1); los reintentos amplian el radio de busqueda segun este numero, hasta
     // un maximo configurado, para no perseguir indefinidamente un viaje ya abandonado.
     @Column(name = "dispatch_attempts", nullable = false)
     @Builder.Default
     private int dispatchAttempts = 0;
+
+    // PIN de 4 digitos generado al aceptar la oferta: el pasajero se lo dice al operador al subir,
+    // y el operador debe capturarlo para poder iniciar el viaje (ver TripService.startTrip) - evita
+    // que el operador le "aviente" el viaje a la persona equivocada en la parada.
+    @Column(name = "verification_code", length = 4)
+    private String verificationCode;
 }

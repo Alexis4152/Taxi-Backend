@@ -41,6 +41,10 @@ public class Taxi {
     @Builder.Default
     private boolean active = true;
 
+    @Column(name = "wheelchair_accessible", nullable = false)
+    @Builder.Default
+    private boolean wheelchairAccessible = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();

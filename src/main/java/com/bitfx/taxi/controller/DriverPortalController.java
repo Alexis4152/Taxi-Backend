@@ -6,6 +6,7 @@ import com.bitfx.taxi.dto.auth.CurrentTaxiSummary;
 import com.bitfx.taxi.dto.trip.DriverStatsDto;
 import com.bitfx.taxi.dto.trip.LocationPingRequest;
 import com.bitfx.taxi.dto.trip.RatingResponse;
+import com.bitfx.taxi.dto.trip.StartTripRequest;
 import com.bitfx.taxi.dto.trip.TripHistoryItemDto;
 import com.bitfx.taxi.dto.trip.TripResponseDto;
 import com.bitfx.taxi.dto.admin.TaxiChangeRequestDto;
@@ -88,8 +89,12 @@ public class DriverPortalController {
     }
 
     @GetMapping("/stats")
-    public ApiResponse<DriverStatsDto> stats(Authentication authentication) {
+    public ApiResponse<DriverStatsDto> stats(@RequestParam(defaultValue = "TODAY") String period, Authentication authentication) {
         User user = (User) authentication.getPrincipal();
+        if ("WEEK".equalsIgnoreCase(period)) {
+            java.time.LocalDateTime startOfWeek = java.time.LocalDate.now().with(java.time.DayOfWeek.MONDAY).atStartOfDay();
+            return ApiResponse.ok(tripService.getDriverStats(user, startOfWeek, startOfWeek.plusDays(7)));
+        }
         return ApiResponse.ok(tripService.getDriverStats(user));
     }
 
@@ -139,9 +144,9 @@ public class DriverPortalController {
     }
 
     @PostMapping("/trips/{tripId}/start")
-    public ApiResponse<TripResponseDto> start(@PathVariable Long tripId, Authentication authentication) {
+    public ApiResponse<TripResponseDto> start(@PathVariable Long tripId, @RequestBody(required = false) StartTripRequest req, Authentication authentication) {
         User user = (User) authentication.getPrincipal();
-        return ApiResponse.ok(tripService.startTrip(user, tripId));
+        return ApiResponse.ok(tripService.startTrip(user, tripId, req != null ? req.verificationCode() : null));
     }
 
     @PostMapping("/trips/{tripId}/complete")

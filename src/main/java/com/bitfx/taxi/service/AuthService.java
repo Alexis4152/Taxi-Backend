@@ -50,6 +50,8 @@ public class AuthService {
                 .role(Role.PASSENGER)
                 .active(true)
                 .termsAcceptedAt(LocalDateTime.now())
+                .referralCode(generateUniqueReferralCode())
+                .referredBy(resolveReferrer(req.referralCode()))
                 .build();
         user = userRepository.save(user);
 
@@ -95,6 +97,8 @@ public class AuthService {
                 .organization(taxi.getOrganization())
                 .active(true)
                 .termsAcceptedAt(LocalDateTime.now())
+                .referralCode(generateUniqueReferralCode())
+                .referredBy(resolveReferrer(req.referralCode()))
                 .build();
         user = userRepository.save(user);
 
@@ -149,7 +153,20 @@ public class AuthService {
             }
         }
         loginAttemptService.onSuccess(attemptKey);
+        startNewSession(user);
         return buildAuthResult(user);
+    }
+
+    /**
+     * Exige una sola sesion activa a la vez: sube la version de sesion del usuario (invalida de
+     * inmediato cualquier access token ya emitido con la version anterior, sin esperar a que
+     * expire solo - ver JwtAuthFilter/WsAuthChannelInterceptor) y revoca sus refresh tokens
+     * previos (para que ninguna sesion vieja pueda renovarse tampoco).
+     */
+    private void startNewSession(User user) {
+        user.setSessionVersion(user.getSessionVersion() + 1);
+        userRepository.save(user);
+        refreshTokenRepository.findByUserAndRevokedFalse(user).forEach(t -> t.setRevoked(true));
     }
 
     @Transactional(readOnly = true)
@@ -163,7 +180,7 @@ public class AuthService {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Tu sesion expiro, vuelve a iniciar sesion");
         }
         User user = token.getUser();
-        String accessToken = jwtTokenProvider.generateToken(user.getPhone(), user.getId(), user.getRole().name());
+        String accessToken = jwtTokenProvider.generateToken(user.getPhone(), user.getId(), user.getRole().name(), user.getSessionVersion());
         return new RefreshResult(accessToken, toSummary(user));
     }
 
@@ -246,9 +263,22 @@ public class AuthService {
     }
 
     private AuthResult buildAuthResult(User user) {
-        String accessToken = jwtTokenProvider.generateToken(user.getPhone(), user.getId(), user.getRole().name());
+        String accessToken = jwtTokenProvider.generateToken(user.getPhone(), user.getId(), user.getRole().name(), user.getSessionVersion());
         String refreshToken = issueRefreshToken(user);
         return new AuthResult(accessToken, refreshToken, toSummary(user));
+    }
+
+    private String generateUniqueReferralCode() {
+        String code;
+        do {
+            code = TokenGenerator.generateReferralCode();
+        } while (userRepository.existsByReferralCode(code));
+        return code;
+    }
+
+    private User resolveReferrer(String referralCode) {
+        if (referralCode == null || referralCode.isBlank()) return null;
+        return userRepository.findByReferralCode(referralCode.trim().toUpperCase()).orElse(null);
     }
 
     private String issueRefreshToken(User user) {

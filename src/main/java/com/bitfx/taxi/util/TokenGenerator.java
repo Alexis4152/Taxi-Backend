@@ -36,6 +36,19 @@ public final class TokenGenerator {
         }
     }
 
+    /**
+     * Codigo corto para invitar a otros usuarios (ver ReferralService/User.referralCode). Evita
+     * caracteres facilmente confundibles al compartirlo de palabra o por mensaje (0/O, 1/I/L).
+     */
+    public static String generateReferralCode() {
+        String chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 6; i++) {
+            sb.append(chars.charAt(RANDOM.nextInt(chars.length())));
+        }
+        return sb.toString();
+    }
+
     public static String generateTemporaryPassword() {
         String chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#";
         StringBuilder sb = new StringBuilder();

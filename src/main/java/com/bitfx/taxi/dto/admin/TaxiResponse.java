@@ -11,7 +11,8 @@ public record TaxiResponse(
         String photoUrl,
         boolean active,
         Long organizationId,
-        String organizationName
+        String organizationName,
+        boolean wheelchairAccessible
 ) {
     public static TaxiResponse from(Taxi t) {
         return new TaxiResponse(
@@ -23,7 +24,8 @@ public record TaxiResponse(
                 t.getPhotoUrl(),
                 t.isActive(),
                 t.getOrganization().getId(),
-                t.getOrganization().getName()
+                t.getOrganization().getName(),
+                t.isWheelchairAccessible()
         );
     }
 }
