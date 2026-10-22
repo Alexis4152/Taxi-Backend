@@ -52,4 +52,9 @@ public class TripReport {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "resolved_by_user_id")
     private User resolvedBy;
+
+    // Nota del admin explicando como se resolvio - se le manda por correo a pasajero y operador
+    // del viaje reportado (ver TripReportService.resolve).
+    @Column(name = "resolution_comment", length = 500)
+    private String resolutionComment;
 }

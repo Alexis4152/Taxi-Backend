@@ -28,8 +28,7 @@ public class PlatformSettingsController {
 
     @PutMapping
     public ApiResponse<PlatformSettingsResponse> update(@Valid @RequestBody UpdatePlatformSettingsRequest req) {
-        var updated = platformSettingsService.update(
-                req.tripGeofenceRadiusMeters(), req.dispatchSearchRadiusKm(), req.referralRewardDescription());
+        var updated = platformSettingsService.update(req);
         return ApiResponse.ok("Configuracion actualizada", PlatformSettingsResponse.from(updated));
     }
 }

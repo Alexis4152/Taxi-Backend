@@ -32,6 +32,7 @@ public class LocationService {
     private final TripRepository tripRepository;
     private final TripNotifier tripNotifier;
     private final TripService tripService;
+    private final DriverBillingService driverBillingService;
 
     @Value("${app.driver.stale-timeout-minutes}")
     private long staleTimeoutMinutes;
@@ -39,6 +40,14 @@ public class LocationService {
     @Transactional
     public void ping(User driverUser, LocationPingRequest req) {
         DriverProfile driver = resolveDriver(driverUser);
+        // Si ya trae un viaje asignado (lo acepto antes de que lo bloquearan), se le deja seguir
+        // mandando ubicacion para que ese viaje termine con normalidad (el pasajero lo sigue viendo
+        // en el mapa) - el bloqueo es para impedir que tome viajes NUEVOS, no para cortarle uno que
+        // ya esta en curso.
+        boolean hasActiveTrip = tripRepository.findFirstByDriverAndStatusIn(driver, TRACKABLE_STATUSES).isPresent();
+        if (!hasActiveTrip) {
+            driverBillingService.assertNotBlocked(driver);
+        }
         DriverLocation location = driverLocationRepository.findByDriver(driver)
                 .orElseGet(() -> DriverLocation.builder().driver(driver).build());
         location.setLat(req.lat());

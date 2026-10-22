@@ -49,6 +49,7 @@ public class TripService {
     private final PassengerProfileRepository passengerProfileRepository;
     private final RatingRepository ratingRepository;
     private final PlatformSettingsService platformSettingsService;
+    private final DriverBillingService driverBillingService;
     private final RoutingService routingService;
     private final FareService fareService;
     private final TripNotifier tripNotifier;
@@ -84,6 +85,9 @@ public class TripService {
 
         RouteEstimate estimate = routingService.estimate(req.originLat(), req.originLng(), req.destinationLat(), req.destinationLng());
         var estimatedFare = fareService.estimateFare(null, estimate.distanceKm());
+        PlatformSettings settings = platformSettingsService.get();
+        var passengerServiceFee = PlatformSettingsService.computeFee(settings.getPassengerFeeType(), settings.getPassengerFeeValue(), estimatedFare);
+        var operatorServiceFee = PlatformSettingsService.computeFee(settings.getOperatorFeeType(), settings.getOperatorFeeValue(), estimatedFare);
 
         Trip trip = Trip.builder()
                 .passenger(passenger)
@@ -107,6 +111,8 @@ public class TripService {
                 .hasPet(req.hasPet())
                 .requiresWheelchairAccessible(req.requiresWheelchairAccessible())
                 .specialComments(req.comments())
+                .passengerServiceFee(passengerServiceFee)
+                .operatorServiceFee(operatorServiceFee)
                 .build();
         trip = tripRepository.save(trip);
 
@@ -248,6 +254,7 @@ public class TripService {
     @Transactional
     public TripResponseDto acceptOffer(User driverUser, Long tripId, Long offerId) {
         DriverProfile driver = resolveDriver(driverUser);
+        driverBillingService.assertNotBlocked(driver);
         Trip trip = getTrip(tripId);
         TripOffer offer = tripOfferRepository.findById(offerId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Oferta no encontrada"));
@@ -282,7 +289,11 @@ public class TripService {
         trip.setOrganization(driver.getOrganization());
         trip.setStatus(TripStatus.ACCEPTED);
         trip.setAcceptedAt(LocalDateTime.now());
-        trip.setEstimatedFare(fareService.estimateFare(driver.getOrganization(), trip.getDistanceKm()));
+        BigDecimal finalFare = fareService.estimateFare(driver.getOrganization(), trip.getDistanceKm());
+        trip.setEstimatedFare(finalFare);
+        PlatformSettings settings = platformSettingsService.get();
+        trip.setPassengerServiceFee(PlatformSettingsService.computeFee(settings.getPassengerFeeType(), settings.getPassengerFeeValue(), finalFare));
+        trip.setOperatorServiceFee(PlatformSettingsService.computeFee(settings.getOperatorFeeType(), settings.getOperatorFeeValue(), finalFare));
         try {
             // saveAndFlush (no solo save) para que un conflicto de version se detecte AQUI, en
             // vez de hasta el commit de la transaccion (fuera de este try/catch).
@@ -361,6 +372,7 @@ public class TripService {
             trip.setPaymentConfirmed(true);
         }
         trip = tripRepository.save(trip);
+        driverBillingService.recordCompletedTrip(driver, trip);
         TripResponseDto dto = toDto(trip);
         tripNotifier.notifyTripUpdate(trip.getId(), dto);
         return dto;

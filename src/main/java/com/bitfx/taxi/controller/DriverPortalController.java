@@ -3,6 +3,7 @@ package com.bitfx.taxi.controller;
 import com.bitfx.taxi.dto.ApiResponse;
 import com.bitfx.taxi.dto.admin.DriverResponse;
 import com.bitfx.taxi.dto.auth.CurrentTaxiSummary;
+import com.bitfx.taxi.dto.driver.DriverPaymentInfoResponse;
 import com.bitfx.taxi.dto.trip.DriverStatsDto;
 import com.bitfx.taxi.dto.trip.LocationPingRequest;
 import com.bitfx.taxi.dto.trip.RatingResponse;
@@ -16,6 +17,7 @@ import com.bitfx.taxi.model.DriverProfile;
 import com.bitfx.taxi.model.User;
 import com.bitfx.taxi.repository.DriverLocationRepository;
 import com.bitfx.taxi.repository.DriverProfileRepository;
+import com.bitfx.taxi.service.DriverBillingService;
 import com.bitfx.taxi.service.FileStorageService;
 import com.bitfx.taxi.service.LocationService;
 import com.bitfx.taxi.service.RatingService;
@@ -44,6 +46,7 @@ public class DriverPortalController {
     private final DriverLocationRepository driverLocationRepository;
     private final TaxiChangeRequestService taxiChangeRequestService;
     private final FileStorageService fileStorageService;
+    private final DriverBillingService driverBillingService;
 
     @GetMapping("/me")
     public ApiResponse<DriverResponse> me(Authentication authentication) {
@@ -52,6 +55,12 @@ public class DriverPortalController {
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "No tienes un perfil de operador"));
         boolean online = driverLocationRepository.findByDriver(driver).map(loc -> loc.isOnline()).orElse(false);
         return ApiResponse.ok(DriverResponse.from(driver, online));
+    }
+
+    @GetMapping("/payment-info")
+    public ApiResponse<DriverPaymentInfoResponse> paymentInfo(Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        return ApiResponse.ok(driverBillingService.getPaymentInfo(user));
     }
 
     @PostMapping("/photo")

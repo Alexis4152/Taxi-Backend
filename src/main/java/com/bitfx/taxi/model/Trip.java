@@ -161,4 +161,17 @@ public class Trip {
     // que el operador le "aviente" el viaje a la persona equivocada en la parada.
     @Column(name = "verification_code", length = 4)
     private String verificationCode;
+
+    // Cobro de plataforma de este viaje en concreto, calculado y guardado al solicitarlo (y
+    // reconfirmado al aceptarlo, cuando ya se conoce la tarifa final por organizacion) para no
+    // depender de que la configuracion no cambie despues - ver PlatformSettingsService y
+    // TripService.requestTrip/acceptOffer. passengerServiceFee se le suma al pasajero sobre la
+    // tarifa; ambos cobros se acumulan en el saldo por pagar del operador al completarse el viaje.
+    @Column(name = "passenger_service_fee", nullable = false, precision = 8, scale = 2)
+    @Builder.Default
+    private BigDecimal passengerServiceFee = BigDecimal.ZERO;
+
+    @Column(name = "operator_service_fee", nullable = false, precision = 8, scale = 2)
+    @Builder.Default
+    private BigDecimal operatorServiceFee = BigDecimal.ZERO;
 }

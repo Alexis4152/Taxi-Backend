@@ -12,4 +12,8 @@ public interface DriverProfileRepository extends JpaRepository<DriverProfile, Lo
     Optional<DriverProfile> findByUser_Id(Long userId);
     List<DriverProfile> findByOrganization(Organization organization);
     List<DriverProfile> findByTaxi(Taxi taxi);
+
+    // Candidatos a revisar en el chequeo periodico de pagos vencidos (ver
+    // DriverBillingService.blockOverdueDrivers) - ya bloqueados no hace falta volver a evaluarlos.
+    List<DriverProfile> findByPendingAmountGreaterThanAndPaymentBlockedFalse(java.math.BigDecimal zero);
 }

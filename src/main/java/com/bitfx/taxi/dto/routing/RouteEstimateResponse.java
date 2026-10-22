@@ -7,6 +7,7 @@ public record RouteEstimateResponse(
         BigDecimal distanceKm,
         BigDecimal durationMin,
         BigDecimal estimatedFare,
+        BigDecimal passengerServiceFee,
         List<List<Double>> routeGeometry
 ) {
 }

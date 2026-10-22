@@ -82,6 +82,13 @@ public class EmailService {
         send(toEmail, approved ? "Tu cambio de taxi fue aprobado - NexoraTaxis" : "Tu cambio de taxi fue rechazado - NexoraTaxis", body);
     }
 
+    @Async
+    public void sendTripReportResolvedEmail(String toEmail, String name, Long tripId, String resolutionComment) {
+        String body = "Hola " + name + ", el reporte que se registro sobre el viaje #" + tripId + " ya fue revisado.\n\n" +
+                "Resolucion del administrador:\n" + resolutionComment;
+        send(toEmail, "Tu reporte del viaje #" + tripId + " fue resuelto - NexoraTaxis", body);
+    }
+
     private void send(String toEmail, String subject, String body) {
         if (!mailEnabled || toEmail == null || toEmail.isBlank()) {
             log.info("Correo omitido (mail deshabilitado o sin destinatario). Asunto: '{}' para '{}'", subject, toEmail);

@@ -4,6 +4,7 @@ import com.bitfx.taxi.dto.ApiResponse;
 import com.bitfx.taxi.dto.routing.RouteEstimateRequest;
 import com.bitfx.taxi.dto.routing.RouteEstimateResponse;
 import com.bitfx.taxi.service.FareService;
+import com.bitfx.taxi.service.PlatformSettingsService;
 import com.bitfx.taxi.service.RoutingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,11 +25,14 @@ public class RoutingController {
 
     private final RoutingService routingService;
     private final FareService fareService;
+    private final PlatformSettingsService platformSettingsService;
 
     @PostMapping("/estimate")
     public ApiResponse<RouteEstimateResponse> estimate(@Valid @RequestBody RouteEstimateRequest req) {
         var estimate = routingService.estimate(req.originLat(), req.originLng(), req.destinationLat(), req.destinationLng());
         var fare = fareService.estimateFare(null, estimate.distanceKm());
-        return ApiResponse.ok(new RouteEstimateResponse(estimate.distanceKm(), estimate.durationMin(), fare, estimate.routeGeometry()));
+        var settings = platformSettingsService.get();
+        var passengerServiceFee = PlatformSettingsService.computeFee(settings.getPassengerFeeType(), settings.getPassengerFeeValue(), fare);
+        return ApiResponse.ok(new RouteEstimateResponse(estimate.distanceKm(), estimate.durationMin(), fare, passengerServiceFee, estimate.routeGeometry()));
     }
 }

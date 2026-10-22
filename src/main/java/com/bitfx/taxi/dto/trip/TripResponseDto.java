@@ -54,7 +54,8 @@ public record TripResponseDto(
         boolean hasPet,
         boolean requiresWheelchairAccessible,
         String specialComments,
-        boolean taxiWheelchairAccessible
+        boolean taxiWheelchairAccessible,
+        BigDecimal passengerServiceFee
 ) {
     public static TripResponseDto from(Trip t, List<List<Double>> routeGeometry, PassengerProfile passengerProfile) {
         return new TripResponseDto(
@@ -102,7 +103,8 @@ public record TripResponseDto(
                 t.isHasPet(),
                 t.isRequiresWheelchairAccessible(),
                 t.getSpecialComments(),
-                t.getTaxi() != null && t.getTaxi().isWheelchairAccessible()
+                t.getTaxi() != null && t.getTaxi().isWheelchairAccessible(),
+                t.getPassengerServiceFee()
         );
     }
 }

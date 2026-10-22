@@ -10,6 +10,7 @@ import com.bitfx.taxi.dto.trip.TripResponseDto;
 import com.bitfx.taxi.model.Organization;
 import com.bitfx.taxi.model.User;
 import com.bitfx.taxi.security.OrgScope;
+import com.bitfx.taxi.service.DriverBillingService;
 import com.bitfx.taxi.service.DriverService;
 import com.bitfx.taxi.service.FileStorageService;
 import com.bitfx.taxi.service.RatingService;
@@ -33,6 +34,7 @@ public class DriverController {
     private final FileStorageService fileStorageService;
     private final RatingService ratingService;
     private final TripService tripService;
+    private final DriverBillingService driverBillingService;
 
     @GetMapping
     public ApiResponse<List<DriverResponse>> list(Authentication authentication) {
@@ -98,6 +100,11 @@ public class DriverController {
     public ApiResponse<Void> setActive(@PathVariable Long id, @RequestParam boolean active) {
         driverService.setActive(id, active);
         return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/{id}/mark-paid")
+    public ApiResponse<DriverResponse> markPaid(@PathVariable Long id) {
+        return ApiResponse.ok("Pago confirmado, el operador ya puede conectarse", DriverResponse.from(driverBillingService.markPaid(id)));
     }
 
     @PatchMapping("/{id}/taxi")

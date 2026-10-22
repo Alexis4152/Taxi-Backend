@@ -2,6 +2,9 @@ package com.bitfx.taxi.dto.admin;
 
 import com.bitfx.taxi.model.DriverProfile;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
 public record DriverResponse(
         Long driverId,
         Long userId,
@@ -21,7 +24,11 @@ public record DriverResponse(
         String taxiPlates,
         String taxiBrand,
         String taxiModel,
-        boolean online
+        boolean online,
+        BigDecimal pendingAmount,
+        int unpaidTripCount,
+        LocalDateTime paymentDueAt,
+        boolean paymentBlocked
 ) {
     public static DriverResponse from(DriverProfile d) {
         return from(d, false);
@@ -51,7 +58,11 @@ public record DriverResponse(
                 d.getTaxi() != null ? d.getTaxi().getPlates() : null,
                 d.getTaxi() != null ? d.getTaxi().getBrand() : null,
                 d.getTaxi() != null ? d.getTaxi().getModel() : null,
-                online
+                online,
+                d.getPendingAmount(),
+                d.getUnpaidTripCount(),
+                d.getPaymentDueAt(),
+                d.isPaymentBlocked()
         );
     }
 }

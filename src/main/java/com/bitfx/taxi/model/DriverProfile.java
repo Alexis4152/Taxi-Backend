@@ -59,4 +59,23 @@ public class DriverProfile {
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    // Saldo que este operador debe transferir a la plataforma (cobro de operador + cobro de
+    // pasajero de cada viaje completado), cuantos de esos viajes lleva sin pagar, cuando vence el
+    // plazo para pagar, y si ya se le bloqueo el acceso a conectarse por no pagar a tiempo - ver
+    // DriverBillingService.
+    @Column(name = "pending_amount", nullable = false, precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal pendingAmount = BigDecimal.ZERO;
+
+    @Column(name = "unpaid_trip_count", nullable = false)
+    @Builder.Default
+    private int unpaidTripCount = 0;
+
+    @Column(name = "payment_due_at")
+    private LocalDateTime paymentDueAt;
+
+    @Column(name = "payment_blocked", nullable = false)
+    @Builder.Default
+    private boolean paymentBlocked = false;
 }
