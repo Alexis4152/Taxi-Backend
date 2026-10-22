@@ -24,6 +24,7 @@ public record PublicTripDto(
         String taxiPlates,
         Double driverLat,
         Double driverLng,
-        LocalDateTime requestedAt
+        LocalDateTime requestedAt,
+        boolean hasReport
 ) {
 }

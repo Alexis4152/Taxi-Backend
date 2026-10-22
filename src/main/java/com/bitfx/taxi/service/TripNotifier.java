@@ -22,7 +22,21 @@ public class TripNotifier {
     }
 
     public void notifyOfferClosed(Long driverId, Long offerId) {
-        messagingTemplate.convertAndSend("/topic/driver/" + driverId + "/offers", java.util.Map.of("offerId", offerId, "closed", true));
+        notifyOfferClosed(driverId, offerId, null);
+    }
+
+    /**
+     * reason distingue por que se cierra, para que el frontend decida como reaccionar: null (lo
+     * tomo otro operador, o expiro sola) se quita de la lista en silencio; "CANCELLED_BY_PASSENGER"
+     * se muestra brevemente como "viaje cancelado" en vez de desaparecer de inmediato, para que el
+     * operador no se quede con la duda de por que ya no puede aceptarla.
+     */
+    public void notifyOfferClosed(Long driverId, Long offerId, String reason) {
+        var payload = new java.util.HashMap<String, Object>();
+        payload.put("offerId", offerId);
+        payload.put("closed", true);
+        if (reason != null) payload.put("reason", reason);
+        messagingTemplate.convertAndSend("/topic/driver/" + driverId + "/offers", payload);
     }
 
     public void notifyNewMessage(Long tripId, TripMessageDto message) {

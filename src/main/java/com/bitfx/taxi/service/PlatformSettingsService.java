@@ -25,7 +25,7 @@ public class PlatformSettingsService {
 
     private static final long SINGLETON_ID = 1L;
     private static final int MIN_GEOFENCE_RADIUS_METERS = 10;
-    private static final int MAX_GEOFENCE_RADIUS_METERS = 2000;
+    private static final int MAX_GEOFENCE_RADIUS_METERS = 5000;
     private static final double MIN_SEARCH_RADIUS_KM = 0.5;
     private static final double MAX_SEARCH_RADIUS_KM = 50;
     private static final BigDecimal MAX_FIXED_FEE = BigDecimal.valueOf(500);

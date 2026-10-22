@@ -14,7 +14,7 @@ import java.math.BigDecimal;
 public record UpdatePlatformSettingsRequest(
         @NotNull(message = "El radio es obligatorio")
         @Min(value = 10, message = "El radio debe ser de al menos 10 metros")
-        @Max(value = 2000, message = "El radio no puede superar 2000 metros")
+        @Max(value = 5000, message = "El radio no puede superar 5000 metros")
         Integer tripGeofenceRadiusMeters,
         @NotNull(message = "El radio de busqueda es obligatorio")
         @DecimalMin(value = "0.5", message = "El radio debe ser de al menos 0.5 km")

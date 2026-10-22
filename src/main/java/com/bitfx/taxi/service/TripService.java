@@ -50,6 +50,7 @@ public class TripService {
     private final RatingRepository ratingRepository;
     private final PlatformSettingsService platformSettingsService;
     private final DriverBillingService driverBillingService;
+    private final TripReportRepository tripReportRepository;
     private final RoutingService routingService;
     private final FareService fareService;
     private final TripNotifier tripNotifier;
@@ -196,17 +197,33 @@ public class TripService {
                 .expiresAt(expiresAt)
                 .build();
         offer = tripOfferRepository.save(offer);
+        publishOffer(offer, trip, distanceKm, offerTtlSeconds);
+    }
 
+    /**
+     * Si el operador ya tenia esta oferta (una fila SENT y vigente), pero puede que nunca le haya
+     * llegado por WebSocket (ej. el socket se cerro justo cuando se le mando la primera vez, por
+     * backgrounding del navegador/celular) - en vez de ignorarla en silencio, se le vuelve a
+     * publicar la MISMA oferta (sin crear una fila nueva) cada vez que vuelve a hacer ping, para
+     * que la vea en cuanto su conexion se reestablezca.
+     */
+    private void republishExistingOffer(TripOffer offer, Trip trip, DriverLocation loc) {
+        double distanceKm = GeoUtils.haversineKm(trip.getOriginLat(), trip.getOriginLng(), loc.getLat(), loc.getLng());
+        int remainingSeconds = (int) Math.max(1, java.time.Duration.between(LocalDateTime.now(), offer.getExpiresAt()).getSeconds());
+        publishOffer(offer, trip, distanceKm, remainingSeconds);
+    }
+
+    private void publishOffer(TripOffer offer, Trip trip, double distanceKm, int expiresInSeconds) {
         TripOfferDto dto = new TripOfferDto(
                 offer.getId(), trip.getId(),
                 trip.getOriginLat(), trip.getOriginLng(), trip.getOriginAddress(),
                 trip.getDestinationLat(), trip.getDestinationLng(), trip.getDestinationAddress(),
-                trip.getDistanceKm(), trip.getEstimatedFare(), trip.getPaymentMethod().name(),
-                Math.round(distanceKm * 100) / 100.0, offerTtlSeconds,
+                trip.getDistanceKm(), trip.getEstimatedFare(), trip.getPassengerServiceFee(), trip.getPaymentMethod().name(),
+                Math.round(distanceKm * 100) / 100.0, expiresInSeconds,
                 trip.getScheduledAt() != null,
                 trip.isBabySeat(), trip.isMoreThanFourPassengers(), trip.isHasPet(), trip.getSpecialComments()
         );
-        tripNotifier.sendOfferToDriver(loc.getDriver().getId(), dto);
+        tripNotifier.sendOfferToDriver(offer.getDriver().getId(), dto);
     }
 
     /**
@@ -227,7 +244,13 @@ public class TripService {
         double searchRadiusKm = platformSettingsService.get().getDispatchSearchRadiusKm();
         LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(offerTtlSeconds);
         for (Trip trip : tripRepository.findByStatus(TripStatus.SEARCHING)) {
-            if (tripOfferRepository.findByTripAndDriver(trip, driver).isPresent()) continue;
+            TripOffer existingOffer = tripOfferRepository.findByTripAndDriver(trip, driver).orElse(null);
+            if (existingOffer != null) {
+                if (existingOffer.getStatus() == OfferStatus.SENT && existingOffer.getExpiresAt().isAfter(LocalDateTime.now())) {
+                    republishExistingOffer(existingOffer, trip, loc);
+                }
+                continue;
+            }
             if (trip.isRequiresWheelchairAccessible() && !driver.getTaxi().isWheelchairAccessible()) continue;
             double distanceKm = GeoUtils.haversineKm(trip.getOriginLat(), trip.getOriginLng(), loc.getLat(), loc.getLng());
             if (distanceKm > searchRadiusKm) continue;
@@ -407,10 +430,17 @@ public class TripService {
         trip.setCancelledByRole(isPassenger ? CancelledBy.PASSENGER : CancelledBy.DRIVER);
         trip = tripRepository.save(trip);
 
+        // Si el viaje seguia SEARCHING, puede haber operadores con la tarjeta de oferta abierta en
+        // pantalla ("Aceptar"/"Rechazar") - sin avisarles, se quedarian viendo una oferta que ya no
+        // existe hasta que la tocaran y les saliera el error de "oferta no disponible". Si quien
+        // cancelo fue el pasajero, se les marca como cancelada (no se quita en silencio) para que
+        // sepan que paso.
+        String closeReason = isPassenger ? "CANCELLED_BY_PASSENGER" : null;
         tripOfferRepository.findByTrip(trip).forEach(o -> {
             if (o.getStatus() == OfferStatus.SENT) {
                 o.setStatus(OfferStatus.EXPIRED);
                 tripOfferRepository.save(o);
+                tripNotifier.notifyOfferClosed(o.getDriver().getId(), o.getId(), closeReason);
             }
         });
 
@@ -647,7 +677,8 @@ public class TripService {
                 trip.getTaxi() != null ? trip.getTaxi().getPlates() : null,
                 driverLat,
                 driverLng,
-                trip.getRequestedAt()
+                trip.getRequestedAt(),
+                tripReportRepository.existsByTrip_Id(trip.getId())
         );
     }
 

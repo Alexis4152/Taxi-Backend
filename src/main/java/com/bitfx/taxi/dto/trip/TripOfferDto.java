@@ -13,6 +13,7 @@ public record TripOfferDto(
         String destinationAddress,
         BigDecimal distanceKm,
         BigDecimal estimatedFare,
+        BigDecimal passengerServiceFee,
         String paymentMethod,
         double driverDistanceKm,
         int expiresInSeconds,

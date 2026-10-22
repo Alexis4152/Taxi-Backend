@@ -14,4 +14,8 @@ public interface TripReportRepository extends JpaRepository<TripReport, Long> {
     // atender primero al que lleva mas tiempo esperando) - ver TripReportService.list.
     List<TripReport> findByStatusOrderByResolvedAtDesc(TripReportStatus status);
     List<TripReport> findAllByOrderByCreatedAtDesc();
+
+    // Para el enlace publico de seguimiento (ver TripService.getPublicTrip): solo importa si
+    // existe algun reporte de este viaje, no el contenido (eso no se expone sin autenticarse).
+    boolean existsByTrip_Id(Long tripId);
 }
