@@ -50,8 +50,26 @@ public class OrganizationController {
     }
 
     @PatchMapping("/{id}/active")
-    public ApiResponse<Void> setActive(@PathVariable Long id, @RequestParam boolean active) {
-        organizationService.setActive(id, active);
+    public ApiResponse<Void> setActive(@PathVariable Long id, @RequestParam boolean active, @RequestParam(required = false) String reason) {
+        organizationService.setActive(id, active, reason);
         return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/{id}/pending-deletion")
+    public ApiResponse<Void> markPendingDeletion(@PathVariable Long id, @RequestParam(required = false) String reason) {
+        organizationService.markPendingDeletion(id, reason);
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/{id}/pending-deletion/cancel")
+    public ApiResponse<Void> cancelPendingDeletion(@PathVariable Long id) {
+        organizationService.cancelPendingDeletion(id);
+        return ApiResponse.ok(null);
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> deletePermanently(@PathVariable Long id) {
+        organizationService.deletePermanently(id);
+        return ApiResponse.ok("Organización eliminada permanentemente", null);
     }
 }

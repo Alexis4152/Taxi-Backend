@@ -73,10 +73,47 @@ public class TaxiService {
     }
 
     @Transactional
-    public void setActive(Long taxiId, boolean active) {
+    public void setActive(Long taxiId, boolean active, String reason) {
         Taxi taxi = getById(taxiId);
         taxi.setActive(active);
+        taxi.setDeactivationReason(active ? null : reason);
         taxiRepository.save(taxi);
+    }
+
+    // Primer paso de "eliminar": bloquea el taxi y lo marca en revision, sin borrar nada todavia
+    // (le da tiempo al admin de verificar antes de un borrado definitivo e irreversible).
+    @Transactional
+    public void markPendingDeletion(Long taxiId, String reason) {
+        Taxi taxi = getById(taxiId);
+        taxi.setActive(false);
+        taxi.setPendingDeletion(true);
+        taxi.setDeactivationReason(reason);
+        taxiRepository.save(taxi);
+    }
+
+    @Transactional
+    public void cancelPendingDeletion(Long taxiId) {
+        Taxi taxi = getById(taxiId);
+        taxi.setPendingDeletion(false);
+        taxiRepository.save(taxi);
+    }
+
+    // Borrado definitivo - solo permitido si ya paso por markPendingDeletion. Si tiene operadores
+    // vinculados, viajes u otros registros, la base de datos rechaza el borrado (no se hace cascada
+    // manual aqui para no perder historial por error) y se lo reportamos al admin.
+    @Transactional
+    public void deletePermanently(Long taxiId) {
+        Taxi taxi = getById(taxiId);
+        if (!taxi.isPendingDeletion()) {
+            throw new ApiException(HttpStatus.CONFLICT, "Primero debes marcarlo como pendiente de eliminacion");
+        }
+        try {
+            taxiRepository.delete(taxi);
+            taxiRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "No se puede eliminar: el taxi tiene operadores vinculados, viajes u otros registros asociados. Permanece bloqueado como pendiente de eliminacion.");
+        }
     }
 
     private Organization resolveOrganization(Long organizationId) {

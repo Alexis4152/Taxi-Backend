@@ -132,12 +132,18 @@ public class AuthService {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Telefono o contrasena incorrectos");
         }
         if (!user.isActive()) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Tu cuenta esta desactivada, contacta al administrador");
+            String reason = switch (user.getRole()) {
+                case DRIVER -> driverProfileRepository.findByUser_Id(user.getId()).map(DriverProfile::getDeactivationReason).orElse(null);
+                case PASSENGER -> passengerProfileRepository.findByUser_Id(user.getId()).map(PassengerProfile::getDeactivationReason).orElse(null);
+                default -> null;
+            };
+            throw new ApiException(HttpStatus.FORBIDDEN, deactivatedMessage("Tu cuenta esta bloqueada", reason));
         }
         if (user.getRole() == Role.DRIVER) {
             DriverProfile driver = driverProfileRepository.findByUser_Id(user.getId()).orElse(null);
             if (driver == null || !driver.isActive()) {
-                throw new ApiException(HttpStatus.FORBIDDEN, "Tu perfil de operador esta desactivado, contacta al administrador");
+                throw new ApiException(HttpStatus.FORBIDDEN,
+                        deactivatedMessage("Tu perfil de operador esta bloqueado", driver != null ? driver.getDeactivationReason() : null));
             }
             // Un mismo taxi puede tener varios operadores registrados (lo rotan ellos mismos), pero
             // solo uno puede estar conectado a la vez: si otro ya esta en linea con este taxi, no
@@ -153,15 +159,32 @@ public class AuthService {
             }
         }
         loginAttemptService.onSuccess(attemptKey);
+        if (!req.force()) {
+            rejectIfSessionAlreadyOpen(user);
+        }
         startNewSession(user);
         return buildAuthResult(user);
     }
 
     /**
-     * Exige una sola sesion activa a la vez: sube la version de sesion del usuario (invalida de
-     * inmediato cualquier access token ya emitido con la version anterior, sin esperar a que
-     * expire solo - ver JwtAuthFilter/WsAuthChannelInterceptor) y revoca sus refresh tokens
-     * previos (para que ninguna sesion vieja pueda renovarse tampoco).
+     * Exige una sola sesion activa a la vez: si ya existe un refresh token suyo vigente (no
+     * expirado ni revocado), se rechaza este login en vez de desplazar la sesion anterior de
+     * entrada - el front le pregunta al usuario si quiere cerrar esa sesion y continuar, y de
+     * confirmar reenvia el login con force=true (ver startNewSession, que es quien de verdad la
+     * cierra en ese caso).
+     */
+    private void rejectIfSessionAlreadyOpen(User user) {
+        boolean hasActiveSession = refreshTokenRepository.findByUserAndRevokedFalse(user).stream()
+                .anyMatch(t -> t.getExpiresAt().isAfter(LocalDateTime.now()));
+        if (hasActiveSession) {
+            throw new ApiException(HttpStatus.CONFLICT, "Ya cuentas con una sesion abierta, ciérrala o espera a que expire para iniciar sesion de nuevo.");
+        }
+    }
+
+    /**
+     * Sube la version de sesion del usuario (invalida de inmediato cualquier access token ya
+     * emitido con la version anterior, sin esperar a que expire solo - ver
+     * JwtAuthFilter/WsAuthChannelInterceptor) y limpia sus refresh tokens previos ya expirados.
      */
     private void startNewSession(User user) {
         user.setSessionVersion(user.getSessionVersion() + 1);
@@ -193,7 +216,8 @@ public class AuthService {
             return UserSummary.from(user, null, null);
         }
         CurrentTaxiSummary currentTaxi = driver.getTaxi() != null
-                ? new CurrentTaxiSummary(driver.getTaxi().getId(), driver.getTaxi().getUnitNumber(), driver.getTaxi().getPlates())
+                ? new CurrentTaxiSummary(driver.getTaxi().getId(), driver.getTaxi().getUnitNumber(), driver.getTaxi().getPlates(),
+                        driver.getTaxi().isActive(), driver.getTaxi().getDeactivationReason())
                 : null;
         return UserSummary.from(user, driver.getId(), currentTaxi);
     }
@@ -266,6 +290,10 @@ public class AuthService {
         String accessToken = jwtTokenProvider.generateToken(user.getPhone(), user.getId(), user.getRole().name(), user.getSessionVersion());
         String refreshToken = issueRefreshToken(user);
         return new AuthResult(accessToken, refreshToken, toSummary(user));
+    }
+
+    private String deactivatedMessage(String base, String reason) {
+        return (reason != null && !reason.isBlank()) ? base + ". Motivo: " + reason : base + ", contacta al administrador";
     }
 
     private String generateUniqueReferralCode() {

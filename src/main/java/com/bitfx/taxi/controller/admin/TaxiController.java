@@ -58,8 +58,26 @@ public class TaxiController {
     }
 
     @PatchMapping("/{id}/active")
-    public ApiResponse<Void> setActive(@PathVariable Long id, @RequestParam boolean active) {
-        taxiService.setActive(id, active);
+    public ApiResponse<Void> setActive(@PathVariable Long id, @RequestParam boolean active, @RequestParam(required = false) String reason) {
+        taxiService.setActive(id, active, reason);
         return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/{id}/pending-deletion")
+    public ApiResponse<Void> markPendingDeletion(@PathVariable Long id, @RequestParam(required = false) String reason) {
+        taxiService.markPendingDeletion(id, reason);
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/{id}/pending-deletion/cancel")
+    public ApiResponse<Void> cancelPendingDeletion(@PathVariable Long id) {
+        taxiService.cancelPendingDeletion(id);
+        return ApiResponse.ok(null);
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> deletePermanently(@PathVariable Long id) {
+        taxiService.deletePermanently(id);
+        return ApiResponse.ok("Taxi eliminado permanentemente", null);
     }
 }

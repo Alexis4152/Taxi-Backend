@@ -13,6 +13,8 @@ public record AdminPassengerResponse(
         double ratingAvg,
         int ratingCount,
         boolean active,
+        String deactivationReason,
+        boolean pendingDeletion,
         LocalDateTime createdAt
 ) {
     public static AdminPassengerResponse from(PassengerProfile p) {
@@ -25,6 +27,8 @@ public record AdminPassengerResponse(
                 p.getRatingAvg().doubleValue(),
                 p.getRatingCount(),
                 p.getUser().isActive(),
+                p.getDeactivationReason(),
+                p.isPendingDeletion(),
                 p.getUser().getCreatedAt()
         );
     }

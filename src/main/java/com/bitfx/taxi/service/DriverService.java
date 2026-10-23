@@ -12,6 +12,7 @@ import com.bitfx.taxi.repository.TripRepository;
 import com.bitfx.taxi.repository.UserRepository;
 import com.bitfx.taxi.util.TokenGenerator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -169,13 +170,73 @@ public class DriverService {
     }
 
     @Transactional
-    public void setActive(Long driverId, boolean active) {
+    public void setActive(Long driverId, boolean active, String reason) {
         DriverProfile driver = getById(driverId);
         driver.setActive(active);
+        // El motivo solo tiene sentido mientras esta dado de baja - se borra solo al reactivar,
+        // para no dejar un motivo viejo mostrandose si lo vuelven a dar de baja despues sin uno.
+        driver.setDeactivationReason(active ? null : reason);
         driverProfileRepository.save(driver);
         User user = driver.getUser();
         user.setActive(active);
         userRepository.save(user);
+    }
+
+    // Primer paso de "eliminar": bloquea el acceso y lo marca en revision, sin borrar nada todavia
+    // (le da tiempo al admin de verificar antes de un borrado definitivo e irreversible).
+    @Transactional
+    public void markPendingDeletion(Long driverId, String reason) {
+        DriverProfile driver = getById(driverId);
+        driver.setActive(false);
+        driver.setPendingDeletion(true);
+        driver.setDeactivationReason(reason);
+        driverProfileRepository.save(driver);
+        User user = driver.getUser();
+        user.setActive(false);
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void cancelPendingDeletion(Long driverId) {
+        DriverProfile driver = getById(driverId);
+        driver.setPendingDeletion(false);
+        driverProfileRepository.save(driver);
+    }
+
+    // El propio operador solicita que se elimine su cuenta: se bloquea de inmediato su acceso y
+    // queda en revision para que el super admin la acepte (y en ese momento se borre definitivo) o
+    // la rechace.
+    @Transactional
+    public void requestOwnDeletion(User user) {
+        DriverProfile driver = driverProfileRepository.findByUser_Id(user.getId())
+                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "No tienes un perfil de operador"));
+        driver.setActive(false);
+        driver.setPendingDeletion(true);
+        driver.setDeactivationReason("El operador solicito la eliminacion de su cuenta");
+        driverProfileRepository.save(driver);
+        user.setActive(false);
+        userRepository.save(user);
+    }
+
+    // Borrado definitivo - solo permitido si ya paso por markPendingDeletion. Si tiene viajes,
+    // calificaciones u otros registros ligados, la base de datos rechaza el borrado (no se hace
+    // cascada manual aqui para no perder historial por error) y se lo reportamos al admin.
+    @Transactional
+    public void deletePermanently(Long driverId) {
+        DriverProfile driver = getById(driverId);
+        if (!driver.isPendingDeletion()) {
+            throw new ApiException(HttpStatus.CONFLICT, "Primero debes marcarlo como pendiente de eliminacion");
+        }
+        User user = driver.getUser();
+        try {
+            driverProfileRepository.delete(driver);
+            driverProfileRepository.flush();
+            userRepository.delete(user);
+            userRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw new ApiException(HttpStatus.CONFLICT,
+                    "No se puede eliminar: el operador tiene viajes u otros registros asociados. Permanece bloqueado como pendiente de eliminacion.");
+        }
     }
 
     private Organization resolveOrganization(Long organizationId) {

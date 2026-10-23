@@ -57,6 +57,13 @@ public class PassengerController {
         return ApiResponse.ok(url);
     }
 
+    @PostMapping("/request-deletion")
+    public ApiResponse<Void> requestDeletion(Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        passengerService.requestOwnDeletion(user);
+        return ApiResponse.ok("Tu cuenta quedo bloqueada y en revision para su eliminacion", null);
+    }
+
     @GetMapping("/saved-places")
     public ApiResponse<List<SavedPlaceResponse>> savedPlaces(Authentication authentication) {
         User user = (User) authentication.getPrincipal();

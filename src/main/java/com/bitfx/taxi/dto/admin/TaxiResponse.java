@@ -10,6 +10,8 @@ public record TaxiResponse(
         String model,
         String photoUrl,
         boolean active,
+        String deactivationReason,
+        boolean pendingDeletion,
         Long organizationId,
         String organizationName,
         boolean wheelchairAccessible
@@ -23,6 +25,8 @@ public record TaxiResponse(
                 t.getModel(),
                 t.getPhotoUrl(),
                 t.isActive(),
+                t.getDeactivationReason(),
+                t.isPendingDeletion(),
                 t.getOrganization().getId(),
                 t.getOrganization().getName(),
                 t.isWheelchairAccessible()

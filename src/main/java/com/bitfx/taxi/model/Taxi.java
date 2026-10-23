@@ -41,6 +41,16 @@ public class Taxi {
     @Builder.Default
     private boolean active = true;
 
+    // Motivo que el admin escribio al dar de baja este taxi - se le muestra al operador que lo
+    // trae vinculado (ver DriverPortalController.myTaxi). Se borra solo al reactivarlo.
+    @Column(name = "deactivation_reason", length = 300)
+    private String deactivationReason;
+
+    // Marcado por el admin como "pendiente de eliminacion": el taxi ya quedo bloqueado (ver active)
+    // y se deja en revision antes de borrarlo definitivamente (ver TaxiService.deletePermanently).
+    @Column(name = "pending_deletion", nullable = false)
+    private boolean pendingDeletion;
+
     @Column(name = "wheelchair_accessible", nullable = false)
     @Builder.Default
     private boolean wheelchairAccessible = false;

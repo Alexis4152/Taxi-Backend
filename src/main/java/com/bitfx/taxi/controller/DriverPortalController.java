@@ -18,6 +18,7 @@ import com.bitfx.taxi.model.User;
 import com.bitfx.taxi.repository.DriverLocationRepository;
 import com.bitfx.taxi.repository.DriverProfileRepository;
 import com.bitfx.taxi.service.DriverBillingService;
+import com.bitfx.taxi.service.DriverService;
 import com.bitfx.taxi.service.FileStorageService;
 import com.bitfx.taxi.service.LocationService;
 import com.bitfx.taxi.service.RatingService;
@@ -47,6 +48,7 @@ public class DriverPortalController {
     private final TaxiChangeRequestService taxiChangeRequestService;
     private final FileStorageService fileStorageService;
     private final DriverBillingService driverBillingService;
+    private final DriverService driverService;
 
     @GetMapping("/me")
     public ApiResponse<DriverResponse> me(Authentication authentication) {
@@ -80,9 +82,17 @@ public class DriverPortalController {
         DriverProfile driver = driverProfileRepository.findByUser_Id(user.getId())
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "No tienes un perfil de operador"));
         var currentTaxi = driver.getTaxi() != null
-                ? new CurrentTaxiSummary(driver.getTaxi().getId(), driver.getTaxi().getUnitNumber(), driver.getTaxi().getPlates())
+                ? new CurrentTaxiSummary(driver.getTaxi().getId(), driver.getTaxi().getUnitNumber(), driver.getTaxi().getPlates(),
+                        driver.getTaxi().isActive(), driver.getTaxi().getDeactivationReason())
                 : null;
         return ApiResponse.ok(currentTaxi);
+    }
+
+    @PostMapping("/request-deletion")
+    public ApiResponse<Void> requestDeletion(Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        driverService.requestOwnDeletion(user);
+        return ApiResponse.ok("Tu cuenta quedo bloqueada y en revision para su eliminacion", null);
     }
 
     @PostMapping("/taxi-change-requests")

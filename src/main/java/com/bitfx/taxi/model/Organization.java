@@ -31,6 +31,15 @@ public class Organization {
     @Builder.Default
     private boolean active = true;
 
+    // Motivo que el admin escribio al dar de baja esta organizacion. Se borra solo al reactivarla.
+    @Column(name = "deactivation_reason", length = 300)
+    private String deactivationReason;
+
+    // Marcada por el super admin como "pendiente de eliminacion": queda bloqueada y en revision
+    // antes de borrarla definitivamente (ver OrganizationService.deletePermanently).
+    @Column(name = "pending_deletion", nullable = false)
+    private boolean pendingDeletion;
+
     // Marca la UNICA organizacion especial que agrupa a los operadores que se registran solos sin
     // pertenecer a ninguna organizacion contratante (taxistas independientes); se crea sola la
     // primera vez que alguien se registra como independiente.

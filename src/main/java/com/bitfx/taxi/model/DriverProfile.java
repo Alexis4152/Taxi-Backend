@@ -56,6 +56,16 @@ public class DriverProfile {
     @Builder.Default
     private boolean active = true;
 
+    // Motivo que el admin escribio al dar de baja esta cuenta - se le muestra al operador al
+    // intentar iniciar sesion (ver AuthService.login). Se borra solo al reactivar.
+    @Column(name = "deactivation_reason", length = 300)
+    private String deactivationReason;
+
+    // Marcado por el admin como "pendiente de eliminacion": el acceso ya quedo bloqueado (ver
+    // active) y se deja en revision antes de borrarlo definitivamente (ver DriverService.deletePermanently).
+    @Column(name = "pending_deletion", nullable = false)
+    private boolean pendingDeletion;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
