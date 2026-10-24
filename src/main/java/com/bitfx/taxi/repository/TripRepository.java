@@ -25,6 +25,8 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
 
     long countByPassenger(User passenger);
 
+    long countByDriverAndStatus(DriverProfile driver, TripStatus status);
+
     long countByDriverAndStatusAndCompletedAtBetween(DriverProfile driver, TripStatus status, LocalDateTime from, LocalDateTime to);
 
     long countByDriverAndAcceptedAtBetween(DriverProfile driver, LocalDateTime from, LocalDateTime to);

@@ -92,7 +92,7 @@ class AuthServiceTest {
         when(userRepository.findByPhone("5512345678")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", "hashed")).thenReturn(false);
 
-        var req = new LoginRequest("5512345678", "wrong");
+        var req = new LoginRequest("5512345678", "wrong", false);
 
         assertThrows(ApiException.class, () -> authService.login(req));
     }
@@ -103,7 +103,7 @@ class AuthServiceTest {
         when(userRepository.findByPhone("5512345678")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", "hashed")).thenReturn(false);
 
-        var req = new LoginRequest("5512345678", "wrong");
+        var req = new LoginRequest("5512345678", "wrong", false);
         for (int i = 0; i < 5; i++) {
             assertThrows(ApiException.class, () -> authService.login(req));
         }
@@ -123,7 +123,7 @@ class AuthServiceTest {
         when(passwordEncoder.matches("Password123!", "hashed")).thenReturn(true);
         when(driverProfileRepository.findByUser_Id(2L)).thenReturn(Optional.of(driverProfile));
 
-        var req = new LoginRequest("5599990000", "Password123!");
+        var req = new LoginRequest("5599990000", "Password123!", false);
         var result = authService.login(req);
 
         assertEquals(Role.DRIVER, result.user().role());
@@ -139,7 +139,7 @@ class AuthServiceTest {
         when(passwordEncoder.matches("Password123!", "hashed")).thenReturn(true);
         when(driverProfileRepository.findByUser_Id(2L)).thenReturn(Optional.of(driverProfile));
 
-        var req = new LoginRequest("5599990000", "Password123!");
+        var req = new LoginRequest("5599990000", "Password123!", false);
 
         assertThrows(ApiException.class, () -> authService.login(req));
     }
@@ -156,7 +156,7 @@ class AuthServiceTest {
         when(driverProfileRepository.findByUser_Id(2L)).thenReturn(Optional.of(driverProfile));
         when(driverProfileRepository.findByTaxi(taxi)).thenReturn(java.util.List.of(driverProfile));
 
-        var result = authService.login(new LoginRequest("5599990000", "Password123!"));
+        var result = authService.login(new LoginRequest("5599990000", "Password123!", false));
 
         assertNotNull(result.user().currentTaxi());
         assertEquals("007", result.user().currentTaxi().unitNumber());

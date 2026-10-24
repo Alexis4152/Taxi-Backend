@@ -83,6 +83,17 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok(authService.toSummary(user)));
     }
 
+    // Guarda la ultima posicion GPS real conocida de esta cuenta (ver User.lastKnownLat/Lng) - solo
+    // para centrar el mapa al entrar la proxima vez antes de que el GPS en vivo responda, no es
+    // tracking historico. Cualquier rol autenticado puede llamarlo.
+    @PostMapping("/last-location")
+    public ResponseEntity<ApiResponse<Void>> updateLastLocation(@Valid @RequestBody UpdateLastLocationRequest req,
+                                                                  Authentication authentication) {
+        User user = currentUser(authentication);
+        authService.updateLastKnownLocation(user, req.lat(), req.lng());
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
     private User currentUser(Authentication authentication) {
         if (authentication == null || !(authentication.getPrincipal() instanceof User user)) {
             throw new AuthenticationCredentialsNotFoundException("No autenticado");

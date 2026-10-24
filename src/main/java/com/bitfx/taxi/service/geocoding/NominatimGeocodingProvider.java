@@ -1,6 +1,7 @@
 package com.bitfx.taxi.service.geocoding;
 
 import com.bitfx.taxi.exception.ApiException;
+import com.bitfx.taxi.util.GeoUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,6 +55,7 @@ public class NominatimGeocodingProvider implements GeocodingProvider {
                 .queryParam("limit", 1)
                 .queryParam("addressdetails", 0)
                 .build()
+                .encode()
                 .toUriString();
 
         List<Map<String, Object>> results = get(url, new ParameterizedTypeReference<List<Map<String, Object>>>() {
@@ -70,12 +72,82 @@ public class NominatimGeocodingProvider implements GeocodingProvider {
     }
 
     @Override
+    public List<GeocodeResult> suggest(String query, Double nearLat, Double nearLng, int limit) {
+        int finalLimit = Math.max(1, Math.min(limit, 8));
+        // Se piden mas candidatos de los que se van a mostrar: Nominatim los ordena por relevancia
+        // textual/importancia, no por cercania, asi que si solo pidieramos `finalLimit` nos
+        // arriesgamos a que el resultado realmente cercano ni siquiera llegue a estar entre ellos.
+        // Pidiendo mas y reordenando nosotros por distancia (ver abajo) lo "preferimos" de verdad
+        // sin excluir los lejanos (siguen apareciendo, solo mas abajo en la lista).
+        // Nominatim ordena sus resultados por relevancia/importancia global primero: para un
+        // termino muy comun (ej. "periferico"), el tramo "importante" de otra ciudad puede ganarle
+        // facil al tramo local aunque este mas cerca, y si no pedimos suficientes candidatos ese
+        // tramo local nunca llega siquiera a estar entre los que reordenamos por cercania abajo.
+        // 40 es el maximo que permite la API publica de Nominatim.
+        int fetchLimit = nearLat != null && nearLng != null ? 40 : finalLimit;
+
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl + "/search")
+                .queryParam("q", query)
+                .queryParam("format", "jsonv2")
+                .queryParam("limit", fetchLimit)
+                .queryParam("addressdetails", 0)
+                .queryParam("countrycodes", "mx");
+        if (nearLat != null && nearLng != null) {
+            // Caja de ~20km alrededor del punto, solo para PREFERIR resultados cercanos
+            // (bounded=0 = no los excluye, nada mas los prioriza) - no restringe la busqueda a esa zona.
+            double delta = 0.2;
+            String viewbox = (nearLng - delta) + "," + (nearLat + delta) + "," + (nearLng + delta) + "," + (nearLat - delta);
+            builder.queryParam("viewbox", viewbox).queryParam("bounded", 0);
+        }
+        String url = builder.build().encode().toUriString();
+
+        List<Map<String, Object>> results = get(url, new ParameterizedTypeReference<List<Map<String, Object>>>() {
+        });
+        if (results == null) {
+            return List.of();
+        }
+        List<GeocodeResult> mapped = results.stream()
+                .map(r -> new GeocodeResult(
+                        Double.parseDouble(String.valueOf(r.get("lat"))),
+                        Double.parseDouble(String.valueOf(r.get("lon"))),
+                        String.valueOf(r.get("display_name"))))
+                .toList();
+
+        if (nearLat == null || nearLng == null) {
+            return mapped;
+        }
+        return rankByProximity(mapped, nearLat, nearLng, finalLimit);
+    }
+
+    // Un "Iguala" en Tabasco a 700km no le sirve a nadie buscando en Guerrero, aunque coincida el
+    // texto exacto - si ya hay opciones genuinamente cercanas, las lejanas se quitan de la lista en
+    // vez de solo mandarlas al final (verlas ahi igual confunde/resta confianza). Si NINGUNA esta
+    // cerca, se dejan todas (puede ser una busqueda real hacia otra ciudad).
+    private static final double NEARBY_THRESHOLD_KM = 150;
+
+    private List<GeocodeResult> rankByProximity(List<GeocodeResult> candidates, double nearLat, double nearLng, int finalLimit) {
+        record Scored(GeocodeResult result, double distanceKm) {
+        }
+        List<Scored> scored = candidates.stream()
+                .map(r -> new Scored(r, GeoUtils.haversineKm(nearLat, nearLng, r.lat(), r.lng())))
+                .sorted(java.util.Comparator.comparingDouble(Scored::distanceKm))
+                .toList();
+        boolean hasNearbyMatch = scored.stream().anyMatch(s -> s.distanceKm() <= NEARBY_THRESHOLD_KM);
+        return scored.stream()
+                .filter(s -> !hasNearbyMatch || s.distanceKm() <= NEARBY_THRESHOLD_KM)
+                .limit(finalLimit)
+                .map(Scored::result)
+                .toList();
+    }
+
+    @Override
     public String reverseGeocode(double lat, double lng) {
         String url = UriComponentsBuilder.fromHttpUrl(baseUrl + "/reverse")
                 .queryParam("lat", lat)
                 .queryParam("lon", lng)
                 .queryParam("format", "jsonv2")
                 .build()
+                .encode()
                 .toUriString();
 
         Map<String, Object> result = get(url, new ParameterizedTypeReference<Map<String, Object>>() {

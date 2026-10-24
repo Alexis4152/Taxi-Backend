@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * Unico punto por el que la aplicacion llega a Nominatim. El frontend nunca llama al proveedor
  * de geocodificacion directamente (asi se respeta su limite de ~1 req/seg y se puede cachear o
@@ -31,6 +33,19 @@ public class GeocodingController {
         }
         var result = geocodingService.forwardGeocode(q);
         return ApiResponse.ok(GeocodeSearchResponse.from(result));
+    }
+
+    // Autocompletado: varias coincidencias (no una sola) para que el usuario elija de una lista en
+    // vez de que se le llene la direccion sola con la primera que encuentre Nominatim.
+    @GetMapping("/suggest")
+    public ApiResponse<List<GeocodeSearchResponse>> suggest(@RequestParam String q,
+                                                              @RequestParam(required = false) Double lat,
+                                                              @RequestParam(required = false) Double lng) {
+        if (q == null || q.trim().length() < 3) {
+            return ApiResponse.ok(List.of());
+        }
+        var results = geocodingService.suggest(q, lat, lng).stream().map(GeocodeSearchResponse::from).toList();
+        return ApiResponse.ok(results);
     }
 
     @GetMapping("/reverse")

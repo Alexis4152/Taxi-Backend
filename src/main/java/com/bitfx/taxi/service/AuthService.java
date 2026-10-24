@@ -207,6 +207,13 @@ public class AuthService {
         return new RefreshResult(accessToken, toSummary(user));
     }
 
+    @Transactional
+    public void updateLastKnownLocation(User user, double lat, double lng) {
+        user.setLastKnownLat(lat);
+        user.setLastKnownLng(lng);
+        userRepository.save(user);
+    }
+
     public UserSummary toSummary(User user) {
         if (user.getRole() != Role.DRIVER) {
             return UserSummary.from(user, null, null);

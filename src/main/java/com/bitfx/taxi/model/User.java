@@ -77,6 +77,16 @@ public class User implements UserDetails {
     @Builder.Default
     private int sessionVersion = 0;
 
+    // Ultima posicion GPS real que reporto esta cuenta (operador en linea, o pasajero con permiso
+    // de ubicacion concedido) - sirve solo para centrar el mapa al entrar la proxima vez mientras
+    // el GPS en vivo todavia no responde, en vez de abrir siempre en el centro fijo por defecto
+    // (ver DEFAULT_MAP_CENTER en el frontend). No se usa para nada mas (no es tracking historico).
+    @Column(name = "last_known_lat")
+    private Double lastKnownLat;
+
+    @Column(name = "last_known_lng")
+    private Double lastKnownLng;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));

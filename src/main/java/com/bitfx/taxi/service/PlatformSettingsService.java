@@ -63,6 +63,8 @@ public class PlatformSettingsService {
         settings.setPassengerFeeValue(req.passengerFeeValue());
         settings.setPaymentDeadlineHour(req.paymentDeadlineHour());
         settings.setPaymentTripThreshold(req.paymentTripThreshold());
+        settings.setFareRoundToMultipleOf5(req.fareRoundToMultipleOf5());
+        settings.setReferralProgramEnabled(req.referralProgramEnabled());
         settings.setUpdatedAt(LocalDateTime.now());
         return platformSettingsRepository.save(settings);
     }

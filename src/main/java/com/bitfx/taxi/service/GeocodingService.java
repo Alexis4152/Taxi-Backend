@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 
 /**
  * Fachada del "Geocoding service" que pide el frontend: el resto de la app (y los controladores)
@@ -29,6 +30,20 @@ public class GeocodingService {
     @Cacheable(cacheNames = "geocodeReverse", key = "#root.target.roundKey(#lat, #lng)")
     public String reverseGeocode(double lat, double lng) {
         return geocodingProvider.reverseGeocode(lat, lng);
+    }
+
+    private static final int SUGGEST_LIMIT = 6;
+
+    @Cacheable(cacheNames = "geocodeSuggest", key = "#root.target.suggestKey(#query, #nearLat, #nearLng)")
+    public List<GeocodeResult> suggest(String query, Double nearLat, Double nearLng) {
+        return geocodingProvider.suggest(query, nearLat, nearLng, SUGGEST_LIMIT);
+    }
+
+    // La clave incluye la coordenada (redondeada, ver roundKey) ademas del texto: dos personas en
+    // ciudades distintas que escriben la misma palabra no deben compartir cache entre si.
+    public String suggestKey(String query, Double nearLat, Double nearLng) {
+        String coordPart = (nearLat != null && nearLng != null) ? roundKey(nearLat, nearLng) : "none";
+        return query.trim().toLowerCase() + "|" + coordPart;
     }
 
     // Redondea a ~11 metros de precision para que pings de GPS casi identicos compartan cache.

@@ -449,6 +449,69 @@ public class TripService {
         return dto;
     }
 
+    // Solo mientras el operador todavia no lleva al pasajero a bordo: una vez IN_PROGRESS ya no
+    // tiene sentido cambiar de donde se le recogio.
+    private static final List<TripStatus> ORIGIN_EDITABLE_STATUSES = List.of(TripStatus.SEARCHING, TripStatus.ACCEPTED);
+    // El destino se puede ajustar incluso ya arriba del taxi (igual que en apps similares), pero
+    // no despues de terminado/cancelado.
+    private static final List<TripStatus> DESTINATION_EDITABLE_STATUSES =
+            List.of(TripStatus.SEARCHING, TripStatus.ACCEPTED, TripStatus.IN_PROGRESS);
+
+    @Transactional
+    public TripResponseDto updateOrigin(User passenger, Long tripId, UpdateTripOriginRequest req) {
+        Trip trip = getTrip(tripId);
+        if (!trip.getPassenger().getId().equals(passenger.getId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "No puedes modificar este viaje");
+        }
+        if (!ORIGIN_EDITABLE_STATUSES.contains(trip.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "Ya no puedes cambiar el punto de partida de este viaje");
+        }
+        trip.setOriginLat(req.originLat());
+        trip.setOriginLng(req.originLng());
+        trip.setOriginAddress(req.originAddress());
+        return recalcRouteAndFareThenNotify(trip);
+    }
+
+    @Transactional
+    public TripResponseDto updateDestination(User passenger, Long tripId, UpdateTripDestinationRequest req) {
+        Trip trip = getTrip(tripId);
+        if (!trip.getPassenger().getId().equals(passenger.getId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "No puedes modificar este viaje");
+        }
+        if (!DESTINATION_EDITABLE_STATUSES.contains(trip.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "Ya no puedes cambiar el destino de este viaje");
+        }
+        trip.setDestinationLat(req.destinationLat());
+        trip.setDestinationLng(req.destinationLng());
+        trip.setDestinationAddress(req.destinationAddress());
+        return recalcRouteAndFareThenNotify(trip);
+    }
+
+    // Recalcula ruta, tarifa y cobros de servicio tras cambiar origen o destino - la misma cuenta
+    // que requestTrip(), solo que sobre un viaje ya existente (y con la organizacion del operador
+    // ya asignado, si lo hay, para que la tarifa use su tabla en vez de la de la plataforma).
+    private TripResponseDto recalcRouteAndFareThenNotify(Trip trip) {
+        RouteEstimate estimate = routingService.estimate(
+                trip.getOriginLat(), trip.getOriginLng(), trip.getDestinationLat(), trip.getDestinationLng());
+        Organization org = trip.getDriver() != null ? trip.getDriver().getOrganization() : null;
+        var estimatedFare = fareService.estimateFare(org, estimate.distanceKm());
+        PlatformSettings settings = platformSettingsService.get();
+        var passengerServiceFee = PlatformSettingsService.computeFee(settings.getPassengerFeeType(), settings.getPassengerFeeValue(), estimatedFare);
+        var operatorServiceFee = PlatformSettingsService.computeFee(settings.getOperatorFeeType(), settings.getOperatorFeeValue(), estimatedFare);
+
+        trip.setDistanceKm(estimate.distanceKm());
+        trip.setDurationMin(estimate.durationMin());
+        trip.setEstimatedFare(estimatedFare);
+        trip.setRouteGeometryJson(toJson(estimate.routeGeometry()));
+        trip.setPassengerServiceFee(passengerServiceFee);
+        trip.setOperatorServiceFee(operatorServiceFee);
+        trip = tripRepository.save(trip);
+
+        TripResponseDto dto = toDto(trip, estimate.routeGeometry());
+        tripNotifier.notifyTripUpdate(trip.getId(), dto);
+        return dto;
+    }
+
     public TripResponseDto getStatus(User user, Long tripId) {
         Trip trip = getTrip(tripId);
         boolean isPassenger = trip.getPassenger().getId().equals(user.getId());
@@ -610,7 +673,10 @@ public class TripService {
 
     private TripResponseDto toDto(Trip trip, List<List<Double>> routeGeometry) {
         PassengerProfile passengerProfile = passengerProfileRepository.findByUser_Id(trip.getPassenger().getId()).orElse(null);
-        return TripResponseDto.from(trip, routeGeometry, passengerProfile);
+        long driverTripsCompleted = trip.getDriver() != null
+                ? tripRepository.countByDriverAndStatus(trip.getDriver(), TripStatus.COMPLETED)
+                : 0;
+        return TripResponseDto.from(trip, routeGeometry, passengerProfile, driverTripsCompleted);
     }
 
     private String toJson(List<List<Double>> routeGeometry) {

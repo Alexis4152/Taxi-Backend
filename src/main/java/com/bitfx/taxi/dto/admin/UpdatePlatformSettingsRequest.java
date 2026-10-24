@@ -40,6 +40,8 @@ public record UpdatePlatformSettingsRequest(
         Integer paymentDeadlineHour,
         @NotNull(message = "El limite de viajes es obligatorio")
         @Min(value = 1, message = "Debe ser al menos 1 viaje")
-        Integer paymentTripThreshold
+        Integer paymentTripThreshold,
+        boolean fareRoundToMultipleOf5,
+        boolean referralProgramEnabled
 ) {
 }

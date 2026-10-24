@@ -7,6 +7,8 @@ import com.bitfx.taxi.model.*;
 import com.bitfx.taxi.repository.DriverLocationRepository;
 import com.bitfx.taxi.repository.DriverProfileRepository;
 import com.bitfx.taxi.repository.OrganizationRepository;
+import com.bitfx.taxi.repository.PasswordResetTokenRepository;
+import com.bitfx.taxi.repository.RefreshTokenRepository;
 import com.bitfx.taxi.repository.TaxiRepository;
 import com.bitfx.taxi.repository.TripRepository;
 import com.bitfx.taxi.repository.UserRepository;
@@ -35,6 +37,8 @@ public class DriverService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final OrganizationService organizationService;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
 
     public List<DriverProfile> listForOrg(Organization org) {
         return org != null ? driverProfileRepository.findByOrganization(org) : driverProfileRepository.findAll();
@@ -180,6 +184,9 @@ public class DriverService {
         User user = driver.getUser();
         user.setActive(active);
         userRepository.save(user);
+        if (!active) {
+            invalidateSessions(user);
+        }
     }
 
     // Primer paso de "eliminar": bloquea el acceso y lo marca en revision, sin borrar nada todavia
@@ -194,6 +201,17 @@ public class DriverService {
         User user = driver.getUser();
         user.setActive(false);
         userRepository.save(user);
+        invalidateSessions(user);
+    }
+
+    // Bloquear/marcar pendiente de eliminacion no debe dejar utilizable una sesion ya abierta - sin
+    // esto, un token valido emitido antes del bloqueo seguia funcionando con normalidad (podia
+    // conectarse, recibir viajes, etc.) hasta que expirara solo. Misma idea que
+    // AuthService.startNewSession, pero disparada al bloquear en vez de al iniciar sesion.
+    private void invalidateSessions(User user) {
+        user.setSessionVersion(user.getSessionVersion() + 1);
+        userRepository.save(user);
+        refreshTokenRepository.findByUserAndRevokedFalse(user).forEach(t -> t.setRevoked(true));
     }
 
     @Transactional
@@ -216,6 +234,7 @@ public class DriverService {
         driverProfileRepository.save(driver);
         user.setActive(false);
         userRepository.save(user);
+        invalidateSessions(user);
     }
 
     // Borrado definitivo - solo permitido si ya paso por markPendingDeletion. Si tiene viajes,
@@ -231,6 +250,11 @@ public class DriverService {
         try {
             driverProfileRepository.delete(driver);
             driverProfileRepository.flush();
+            // Puramente tecnicas (sesiones/tokens), no historial de negocio - se borran con la
+            // cuenta en vez de bloquear el borrado para siempre (toda cuenta que alguna vez inicio
+            // sesion tiene al menos una fila aqui).
+            refreshTokenRepository.deleteByUser(user);
+            passwordResetTokenRepository.deleteByUser(user);
             userRepository.delete(user);
             userRepository.flush();
         } catch (DataIntegrityViolationException e) {

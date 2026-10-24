@@ -40,6 +40,9 @@ public record TripResponseDto(
         String taxiPlates,
         String taxiBrand,
         String taxiModel,
+        String taxiPhotoUrl,
+        long driverTripsCompleted,
+        boolean driverExcellent,
         LocalDateTime requestedAt,
         LocalDateTime acceptedAt,
         LocalDateTime startedAt,
@@ -57,7 +60,15 @@ public record TripResponseDto(
         boolean taxiWheelchairAccessible,
         BigDecimal passengerServiceFee
 ) {
-    public static TripResponseDto from(Trip t, List<List<Double>> routeGeometry, PassengerProfile passengerProfile) {
+    // Umbrales de la insignia "Conductor excelente" que ve el pasajero - necesita un minimo de
+    // viajes para que la calificacion sea representativa, no solo un par de viajes con 5 estrellas.
+    private static final double EXCELLENT_RATING_THRESHOLD = 4.5;
+    private static final int EXCELLENT_MIN_TRIPS = 20;
+
+    public static TripResponseDto from(Trip t, List<List<Double>> routeGeometry, PassengerProfile passengerProfile, long driverTripsCompleted) {
+        boolean driverExcellent = t.getDriver() != null
+                && driverTripsCompleted >= EXCELLENT_MIN_TRIPS
+                && t.getDriver().getRatingAvg().doubleValue() >= EXCELLENT_RATING_THRESHOLD;
         return new TripResponseDto(
                 t.getId(),
                 t.getPassenger().getId(),
@@ -89,6 +100,9 @@ public record TripResponseDto(
                 t.getTaxi() != null ? t.getTaxi().getPlates() : null,
                 t.getTaxi() != null ? t.getTaxi().getBrand() : null,
                 t.getTaxi() != null ? t.getTaxi().getModel() : null,
+                t.getTaxi() != null ? t.getTaxi().getPhotoUrl() : null,
+                driverTripsCompleted,
+                driverExcellent,
                 t.getRequestedAt(),
                 t.getAcceptedAt(),
                 t.getStartedAt(),

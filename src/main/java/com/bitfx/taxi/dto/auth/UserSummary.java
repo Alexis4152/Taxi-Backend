@@ -14,7 +14,9 @@ public record UserSummary(
         String organizationLogoUrl,
         boolean mustChangePassword,
         Long driverId,
-        CurrentTaxiSummary currentTaxi
+        CurrentTaxiSummary currentTaxi,
+        Double lastKnownLat,
+        Double lastKnownLng
 ) {
     public static UserSummary from(User user) {
         return from(user, null, null);
@@ -32,7 +34,9 @@ public record UserSummary(
                 user.getOrganization() != null ? user.getOrganization().getLogoUrl() : null,
                 user.isMustChangePassword(),
                 driverId,
-                currentTaxi
+                currentTaxi,
+                user.getLastKnownLat(),
+                user.getLastKnownLng()
         );
     }
 }

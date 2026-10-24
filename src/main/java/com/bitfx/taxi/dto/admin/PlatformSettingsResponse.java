@@ -15,7 +15,9 @@ public record PlatformSettingsResponse(
         FeeType passengerFeeType,
         BigDecimal passengerFeeValue,
         int paymentDeadlineHour,
-        int paymentTripThreshold
+        int paymentTripThreshold,
+        boolean fareRoundToMultipleOf5,
+        boolean referralProgramEnabled
 ) {
     public static PlatformSettingsResponse from(PlatformSettings s) {
         return new PlatformSettingsResponse(
@@ -28,7 +30,9 @@ public record PlatformSettingsResponse(
                 s.getPassengerFeeType(),
                 s.getPassengerFeeValue(),
                 s.getPaymentDeadlineHour(),
-                s.getPaymentTripThreshold()
+                s.getPaymentTripThreshold(),
+                s.isFareRoundToMultipleOf5(),
+                s.isReferralProgramEnabled()
         );
     }
 }

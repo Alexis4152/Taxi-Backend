@@ -4,6 +4,10 @@ import com.bitfx.taxi.exception.ApiException;
 import com.bitfx.taxi.model.PassengerProfile;
 import com.bitfx.taxi.model.User;
 import com.bitfx.taxi.repository.PassengerProfileRepository;
+import com.bitfx.taxi.repository.PasswordResetTokenRepository;
+import com.bitfx.taxi.repository.RefreshTokenRepository;
+import com.bitfx.taxi.repository.SavedPlaceRepository;
+import com.bitfx.taxi.repository.TrustedContactRepository;
 import com.bitfx.taxi.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -19,6 +23,10 @@ public class PassengerService {
 
     private final PassengerProfileRepository passengerProfileRepository;
     private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final SavedPlaceRepository savedPlaceRepository;
+    private final TrustedContactRepository trustedContactRepository;
 
     public PassengerProfile getByUserId(Long userId) {
         return passengerProfileRepository.findByUser_Id(userId)
@@ -50,6 +58,9 @@ public class PassengerService {
         // El motivo solo tiene sentido mientras esta bloqueado - se borra solo al reactivar.
         profile.setDeactivationReason(active ? null : reason);
         passengerProfileRepository.save(profile);
+        if (!active) {
+            invalidateSessions(profile.getUser());
+        }
     }
 
     // Primer paso de "eliminar" (desde el admin): bloquea al usuario y lo marca en revision, sin
@@ -62,6 +73,16 @@ public class PassengerService {
         profile.setPendingDeletion(true);
         profile.setDeactivationReason(reason);
         passengerProfileRepository.save(profile);
+        invalidateSessions(profile.getUser());
+    }
+
+    // Bloquear/marcar pendiente de eliminacion no debe dejar utilizable una sesion ya abierta - sin
+    // esto, un token valido emitido antes del bloqueo seguia funcionando con normalidad hasta que
+    // expirara solo. Misma idea que AuthService.startNewSession, pero disparada al bloquear.
+    private void invalidateSessions(User user) {
+        user.setSessionVersion(user.getSessionVersion() + 1);
+        userRepository.save(user);
+        refreshTokenRepository.findByUserAndRevokedFalse(user).forEach(t -> t.setRevoked(true));
     }
 
     @Transactional
@@ -83,6 +104,7 @@ public class PassengerService {
         profile.setPendingDeletion(true);
         profile.setDeactivationReason("El usuario solicito la eliminacion de su cuenta");
         passengerProfileRepository.save(profile);
+        invalidateSessions(profile.getUser());
     }
 
     // Borrado definitivo - solo permitido si ya paso por markPendingDeletion (admin o el propio
@@ -98,6 +120,13 @@ public class PassengerService {
         try {
             passengerProfileRepository.delete(profile);
             passengerProfileRepository.flush();
+            // Datos personales de conveniencia (no historial de negocio): se borran con la cuenta.
+            savedPlaceRepository.deleteByPassenger(user);
+            trustedContactRepository.deleteByPassenger(user);
+            // Puramente tecnicas (sesiones/tokens) - toda cuenta que alguna vez inicio sesion tiene
+            // al menos una fila aqui, asi que sin esto el borrado nunca podria completarse.
+            refreshTokenRepository.deleteByUser(user);
+            passwordResetTokenRepository.deleteByUser(user);
             userRepository.delete(user);
             userRepository.flush();
         } catch (DataIntegrityViolationException e) {

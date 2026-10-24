@@ -80,6 +80,18 @@ public class PlatformSettings {
     @Builder.Default
     private int paymentTripThreshold = 20;
 
+    // Si esta activo, toda tarifa base (FareService.estimateFare) se redondea al multiplo de 5 mas
+    // cercano (ej. 42.27 -> 40, 43.80 -> 45) para que el pasajero pague en efectivo sin necesitar
+    // monedas. Apagado por default para no alterar tarifas existentes sin que el superadmin lo pida.
+    @Column(name = "fare_round_to_multiple_of_5", nullable = false)
+    private boolean fareRoundToMultipleOf5;
+
+    // Si esta apagado, la tarjeta "Invita y gana" se oculta para todos los operadores y pasajeros
+    // (ver ReferralCard) - prendido por default porque ya se mostraba a todos antes de este ajuste.
+    @Column(name = "referral_program_enabled", nullable = false)
+    @Builder.Default
+    private boolean referralProgramEnabled = true;
+
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 }

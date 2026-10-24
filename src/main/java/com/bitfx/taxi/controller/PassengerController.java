@@ -4,12 +4,15 @@ import com.bitfx.taxi.dto.ApiResponse;
 import com.bitfx.taxi.dto.PassengerResponse;
 import com.bitfx.taxi.dto.passenger.SavedPlaceDto;
 import com.bitfx.taxi.dto.passenger.SavedPlaceResponse;
+import com.bitfx.taxi.dto.passenger.TrustedContactDto;
+import com.bitfx.taxi.dto.passenger.TrustedContactResponse;
 import com.bitfx.taxi.dto.trip.RatingResponse;
 import com.bitfx.taxi.model.User;
 import com.bitfx.taxi.service.FileStorageService;
 import com.bitfx.taxi.service.PassengerService;
 import com.bitfx.taxi.service.RatingService;
 import com.bitfx.taxi.service.SavedPlaceService;
+import com.bitfx.taxi.service.TrustedContactService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -36,6 +39,7 @@ public class PassengerController {
     private final RatingService ratingService;
     private final FileStorageService fileStorageService;
     private final SavedPlaceService savedPlaceService;
+    private final TrustedContactService trustedContactService;
 
     @GetMapping("/me")
     public ApiResponse<PassengerResponse> me(Authentication authentication) {
@@ -80,6 +84,25 @@ public class PassengerController {
     public ApiResponse<Void> deleteSavedPlace(@PathVariable Long id, Authentication authentication) {
         User user = (User) authentication.getPrincipal();
         savedPlaceService.delete(user.getId(), id);
+        return ApiResponse.ok(null);
+    }
+
+    @GetMapping("/trusted-contacts")
+    public ApiResponse<List<TrustedContactResponse>> trustedContacts(Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        return ApiResponse.ok(trustedContactService.list(user.getId()));
+    }
+
+    @PostMapping("/trusted-contacts")
+    public ApiResponse<TrustedContactResponse> createTrustedContact(@Valid @RequestBody TrustedContactDto req, Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        return ApiResponse.ok(trustedContactService.create(user, req));
+    }
+
+    @DeleteMapping("/trusted-contacts/{id}")
+    public ApiResponse<Void> deleteTrustedContact(@PathVariable Long id, Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        trustedContactService.delete(user.getId(), id);
         return ApiResponse.ok(null);
     }
 }

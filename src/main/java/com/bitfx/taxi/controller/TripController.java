@@ -11,6 +11,8 @@ import com.bitfx.taxi.dto.trip.TripReportDto;
 import com.bitfx.taxi.dto.trip.TripReportResponse;
 import com.bitfx.taxi.dto.trip.TripRequestDto;
 import com.bitfx.taxi.dto.trip.TripResponseDto;
+import com.bitfx.taxi.dto.trip.UpdateTripDestinationRequest;
+import com.bitfx.taxi.dto.trip.UpdateTripOriginRequest;
 import com.bitfx.taxi.model.User;
 import com.bitfx.taxi.service.TripChatService;
 import com.bitfx.taxi.service.TripReportService;
@@ -70,6 +72,22 @@ public class TripController {
     public ApiResponse<TripResponseDto> getStatus(@PathVariable Long id, Authentication authentication) {
         User user = (User) authentication.getPrincipal();
         return ApiResponse.ok(tripService.getStatus(user, id));
+    }
+
+    @PatchMapping("/{id}/origin")
+    @PreAuthorize("hasRole('PASSENGER')")
+    public ApiResponse<TripResponseDto> updateOrigin(@PathVariable Long id, @Valid @RequestBody UpdateTripOriginRequest req,
+                                                       Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        return ApiResponse.ok(tripService.updateOrigin(user, id, req));
+    }
+
+    @PatchMapping("/{id}/destination")
+    @PreAuthorize("hasRole('PASSENGER')")
+    public ApiResponse<TripResponseDto> updateDestination(@PathVariable Long id, @Valid @RequestBody UpdateTripDestinationRequest req,
+                                                           Authentication authentication) {
+        User user = (User) authentication.getPrincipal();
+        return ApiResponse.ok(tripService.updateDestination(user, id, req));
     }
 
     @PostMapping("/{id}/cancel")
