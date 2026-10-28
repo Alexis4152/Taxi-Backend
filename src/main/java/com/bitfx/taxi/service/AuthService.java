@@ -50,6 +50,8 @@ public class AuthService {
                 .role(Role.PASSENGER)
                 .active(true)
                 .termsAcceptedAt(LocalDateTime.now())
+                .privacyAcceptedAt(LocalDateTime.now())
+                .marketingOptIn(req.marketingOptIn())
                 .referralCode(generateUniqueReferralCode())
                 .referredBy(resolveReferrer(req.referralCode()))
                 .build();
@@ -97,6 +99,8 @@ public class AuthService {
                 .organization(taxi.getOrganization())
                 .active(true)
                 .termsAcceptedAt(LocalDateTime.now())
+                .privacyAcceptedAt(LocalDateTime.now())
+                .marketingOptIn(req.marketingOptIn())
                 .referralCode(generateUniqueReferralCode())
                 .referredBy(resolveReferrer(req.referralCode()))
                 .build();

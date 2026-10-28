@@ -21,6 +21,7 @@ public record TripOfferDto(
         boolean babySeat,
         boolean moreThanFourPassengers,
         boolean hasPet,
+        boolean requiresWheelchairAccessible,
         String comments
 ) {
 }

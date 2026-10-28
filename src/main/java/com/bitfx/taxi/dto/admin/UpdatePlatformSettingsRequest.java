@@ -42,6 +42,7 @@ public record UpdatePlatformSettingsRequest(
         @Min(value = 1, message = "Debe ser al menos 1 viaje")
         Integer paymentTripThreshold,
         boolean fareRoundToMultipleOf5,
+        boolean fareRoundToWholePeso,
         boolean referralProgramEnabled
 ) {
 }

@@ -51,6 +51,25 @@ public class FileStorageService {
         }
     }
 
+    /**
+     * Borra del disco un archivo subido antes (ej. la foto de una cuenta que se anonimiza). Best
+     * effort: si no existe o falla, no interrumpe la operacion que lo pidio. Solo se toma el nombre
+     * del archivo, nunca la ruta recibida, para no poder salir de la carpeta de uploads.
+     */
+    public void delete(String url) {
+        if (url == null || !url.startsWith("/uploads/")) {
+            return;
+        }
+        try {
+            Path fileName = Path.of(url.substring("/uploads/".length())).getFileName();
+            if (fileName != null) {
+                Files.deleteIfExists(Path.of(uploadsDir).resolve(fileName));
+            }
+        } catch (Exception ignored) {
+            // Un archivo huerfano en disco no debe impedir completar la anonimizacion.
+        }
+    }
+
     private void validateIsRealImage(MultipartFile file) {
         // ImageIO del JDK no trae lector de WEBP (read() regresa null), asi que ahi solo se valida
         // la firma binaria del archivo ("RIFF....WEBP") en vez de decodificarlo.

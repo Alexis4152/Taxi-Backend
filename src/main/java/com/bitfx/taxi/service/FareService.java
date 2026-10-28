@@ -26,8 +26,11 @@ public class FareService {
             fare = tariff.getMinFare();
         }
         fare = fare.setScale(2, RoundingMode.HALF_UP);
-        if (platformSettingsService.get().isFareRoundToMultipleOf5()) {
+        PlatformSettings settings = platformSettingsService.get();
+        if (settings.isFareRoundToMultipleOf5()) {
             fare = roundToMultipleOf5(fare);
+        } else if (settings.isFareRoundToWholePeso()) {
+            fare = PlatformSettingsService.roundToWholePeso(fare);
         }
         return fare;
     }

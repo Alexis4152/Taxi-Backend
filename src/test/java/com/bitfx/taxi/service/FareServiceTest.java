@@ -1,5 +1,6 @@
 package com.bitfx.taxi.service;
 
+import com.bitfx.taxi.model.FeeType;
 import com.bitfx.taxi.model.PlatformSettings;
 import com.bitfx.taxi.model.TariffRule;
 import com.bitfx.taxi.repository.TariffRuleRepository;
@@ -79,5 +80,51 @@ class FareServiceTest {
         assertEquals(new BigDecimal("40.00"), fareService.estimateFare(null, new BigDecimal("3.30")));
         // 15 + 8.27*3.48 = 43.7796 -> 43.78, distancia a 40 es 3.78 (>= 2.50) -> sube a 45.00
         assertEquals(new BigDecimal("45.00"), fareService.estimateFare(null, new BigDecimal("3.48")));
+    }
+
+    @Test
+    void redondeaAlPesoMasCercanoCuandoEstaActivado() {
+        when(platformSettingsService.get()).thenReturn(PlatformSettings.builder().fareRoundToWholePeso(true).build());
+        TariffRule defaultTariff = TariffRule.builder()
+                .baseFare(new BigDecimal("15.00"))
+                .perKm(new BigDecimal("10.00"))
+                .minFare(new BigDecimal("30.00"))
+                .build();
+        when(tariffRuleRepository.findByOrganizationIsNull()).thenReturn(Optional.of(defaultTariff));
+
+        // 15 + 10*2.749 = 42.49 -> menos de .50, baja a 42.00
+        assertEquals(new BigDecimal("42.00"), fareService.estimateFare(null, new BigDecimal("2.749")));
+        // 15 + 10*2.75 = 42.50 -> .50 o mas, sube a 43.00
+        assertEquals(new BigDecimal("43.00"), fareService.estimateFare(null, new BigDecimal("2.75")));
+    }
+
+    @Test
+    void elMultiploDe5TienePrioridadSobreElRedondeoAlPeso() {
+        when(platformSettingsService.get()).thenReturn(
+                PlatformSettings.builder().fareRoundToMultipleOf5(true).fareRoundToWholePeso(true).build());
+        TariffRule defaultTariff = TariffRule.builder()
+                .baseFare(new BigDecimal("15.00"))
+                .perKm(new BigDecimal("10.00"))
+                .minFare(new BigDecimal("30.00"))
+                .build();
+        when(tariffRuleRepository.findByOrganizationIsNull()).thenReturn(Optional.of(defaultTariff));
+
+        // 42.50 -> multiplo de 5 mas cercano es 45 (no 43)
+        assertEquals(new BigDecimal("45.00"), fareService.estimateFare(null, new BigDecimal("2.75")));
+    }
+
+    @Test
+    void losCobrosDeServicioTambienSeRedondeanAlPeso() {
+        PlatformSettings settings = PlatformSettings.builder()
+                .passengerFeeType(FeeType.PERCENT).passengerFeeValue(new BigDecimal("7"))
+                .operatorFeeType(FeeType.PERCENT).operatorFeeValue(new BigDecimal("9"))
+                .fareRoundToWholePeso(true)
+                .build();
+        // 7% de 43 = 3.01 -> 3.00 ; 9% de 43 = 3.87 -> 4.00
+        assertEquals(new BigDecimal("3.00"), PlatformSettingsService.passengerFee(settings, new BigDecimal("43.00")));
+        assertEquals(new BigDecimal("4.00"), PlatformSettingsService.operatorFee(settings, new BigDecimal("43.00")));
+
+        settings.setFareRoundToWholePeso(false);
+        assertEquals(new BigDecimal("3.01"), PlatformSettingsService.passengerFee(settings, new BigDecimal("43.00")));
     }
 }

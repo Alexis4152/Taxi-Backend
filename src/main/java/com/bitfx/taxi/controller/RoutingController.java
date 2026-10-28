@@ -32,7 +32,7 @@ public class RoutingController {
         var estimate = routingService.estimate(req.originLat(), req.originLng(), req.destinationLat(), req.destinationLng());
         var fare = fareService.estimateFare(null, estimate.distanceKm());
         var settings = platformSettingsService.get();
-        var passengerServiceFee = PlatformSettingsService.computeFee(settings.getPassengerFeeType(), settings.getPassengerFeeValue(), fare);
+        var passengerServiceFee = PlatformSettingsService.passengerFee(settings, fare);
         return ApiResponse.ok(new RouteEstimateResponse(estimate.distanceKm(), estimate.durationMin(), fare, passengerServiceFee, estimate.routeGeometry()));
     }
 }

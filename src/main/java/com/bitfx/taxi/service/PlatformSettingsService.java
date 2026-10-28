@@ -64,6 +64,7 @@ public class PlatformSettingsService {
         settings.setPaymentDeadlineHour(req.paymentDeadlineHour());
         settings.setPaymentTripThreshold(req.paymentTripThreshold());
         settings.setFareRoundToMultipleOf5(req.fareRoundToMultipleOf5());
+        settings.setFareRoundToWholePeso(req.fareRoundToWholePeso());
         settings.setReferralProgramEnabled(req.referralProgramEnabled());
         settings.setUpdatedAt(LocalDateTime.now());
         return platformSettingsRepository.save(settings);
@@ -87,5 +88,22 @@ public class PlatformSettingsService {
             return baseFare.multiply(value).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
         }
         return value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /** Cobro de servicio al pasajero, sin centavos si esta activo fareRoundToWholePeso. */
+    public static BigDecimal passengerFee(PlatformSettings settings, BigDecimal baseFare) {
+        BigDecimal fee = computeFee(settings.getPassengerFeeType(), settings.getPassengerFeeValue(), baseFare);
+        return settings.isFareRoundToWholePeso() ? roundToWholePeso(fee) : fee;
+    }
+
+    /** Cobro de servicio al operador, sin centavos si esta activo fareRoundToWholePeso. */
+    public static BigDecimal operatorFee(PlatformSettings settings, BigDecimal baseFare) {
+        BigDecimal fee = computeFee(settings.getOperatorFeeType(), settings.getOperatorFeeValue(), baseFare);
+        return settings.isFareRoundToWholePeso() ? roundToWholePeso(fee) : fee;
+    }
+
+    // Peso mas cercano: .50 o mas sube, menos de .50 baja (42.50 -> 43.00, 42.49 -> 42.00).
+    public static BigDecimal roundToWholePeso(BigDecimal amount) {
+        return amount.setScale(0, RoundingMode.HALF_UP).setScale(2, RoundingMode.HALF_UP);
     }
 }

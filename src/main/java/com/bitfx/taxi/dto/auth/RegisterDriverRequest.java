@@ -27,6 +27,8 @@ public record RegisterDriverRequest(
         @NotBlank(message = "La marca del taxi es obligatoria") String taxiBrand,
         @NotBlank(message = "El modelo del taxi es obligatorio") String taxiModel,
         @AssertTrue(message = "Debes aceptar los terminos y condiciones") boolean acceptedTerms,
+        @AssertTrue(message = "Debes aceptar el aviso de privacidad") boolean acceptedPrivacy,
+        boolean marketingOptIn,
         String referralCode
 ) {
 }

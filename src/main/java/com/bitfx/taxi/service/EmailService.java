@@ -89,6 +89,24 @@ public class EmailService {
         send(toEmail, "Tu reporte del viaje #" + tripId + " fue resuelto - NexoraTaxis", body);
     }
 
+    @Async
+    public void sendArcoRequestReceivedEmail(String toEmail, String name, String folio, String typeLabel, java.time.LocalDate dueDate) {
+        String body = "Hola " + name + ", recibimos tu solicitud de " + typeLabel + " sobre tus datos personales.\n\n" +
+                "Folio: " + folio + "\n" +
+                "Fecha limite de respuesta: " + dueDate + " (20 dias habiles)\n\n" +
+                "Te avisaremos por este medio en cuanto sea atendida.";
+        send(toEmail, "Solicitud ARCO " + folio + " recibida - NexoraTaxis", body);
+    }
+
+    @Async
+    public void sendArcoRequestResolvedEmail(String toEmail, String name, String folio, boolean approved, String response) {
+        String body = "Hola " + name + ", tu solicitud " + folio + " sobre tus datos personales fue " +
+                (approved ? "atendida" : "rechazada") + ".\n\n" +
+                (response != null && !response.isBlank() ? "Respuesta:\n" + response + "\n\n" : "") +
+                "Si no estas de acuerdo con la respuesta, puedes acudir ante la autoridad de proteccion de datos personales.";
+        send(toEmail, "Respuesta a tu solicitud ARCO " + folio + " - NexoraTaxis", body);
+    }
+
     private void send(String toEmail, String subject, String body) {
         if (!mailEnabled || toEmail == null || toEmail.isBlank()) {
             log.info("Correo omitido (mail deshabilitado o sin destinatario). Asunto: '{}' para '{}'", subject, toEmail);

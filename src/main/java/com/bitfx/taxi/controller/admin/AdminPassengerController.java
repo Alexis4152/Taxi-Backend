@@ -2,9 +2,11 @@ package com.bitfx.taxi.controller.admin;
 
 import com.bitfx.taxi.dto.ApiResponse;
 import com.bitfx.taxi.dto.admin.AdminPassengerResponse;
+import com.bitfx.taxi.model.User;
 import com.bitfx.taxi.service.PassengerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -50,8 +52,8 @@ public class AdminPassengerController {
     }
 
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> deletePermanently(@PathVariable Long id) {
-        passengerService.deletePermanently(id);
-        return ApiResponse.ok("Usuario eliminado permanentemente", null);
+    public ApiResponse<Void> deletePermanently(@PathVariable Long id, Authentication authentication) {
+        passengerService.deletePermanently(id, (User) authentication.getPrincipal());
+        return ApiResponse.ok("Usuario eliminado: sus datos personales fueron anonimizados", null);
     }
 }

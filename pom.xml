@@ -12,7 +12,7 @@
 	<artifactId>taxiapp-backend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>TaxiApp-Backend</name>
-	<description>BITFX TaxiApp backend</description>
+	<description>NexoraTaxis backend</description>
 
 	<properties>
 		<java.version>21</java.version>

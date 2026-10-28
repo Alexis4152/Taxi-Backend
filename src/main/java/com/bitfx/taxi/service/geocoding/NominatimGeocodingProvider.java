@@ -44,7 +44,7 @@ public class NominatimGeocodingProvider implements GeocodingProvider {
                                        @Value("${app.geocoding.contact-email}") String contactEmail) {
         this.restTemplate = restTemplate;
         this.baseUrl = baseUrl;
-        this.userAgent = "BITFX-TaxiApp/1.0 (" + contactEmail + ")";
+        this.userAgent = "NexoraTaxis/1.0 (" + contactEmail + ")";
     }
 
     @Override

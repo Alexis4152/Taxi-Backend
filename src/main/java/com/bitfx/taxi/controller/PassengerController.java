@@ -6,6 +6,7 @@ import com.bitfx.taxi.dto.passenger.SavedPlaceDto;
 import com.bitfx.taxi.dto.passenger.SavedPlaceResponse;
 import com.bitfx.taxi.dto.passenger.TrustedContactDto;
 import com.bitfx.taxi.dto.passenger.TrustedContactResponse;
+import com.bitfx.taxi.dto.privacy.ArcoRequestResponse;
 import com.bitfx.taxi.dto.trip.RatingResponse;
 import com.bitfx.taxi.model.User;
 import com.bitfx.taxi.service.FileStorageService;
@@ -62,10 +63,10 @@ public class PassengerController {
     }
 
     @PostMapping("/request-deletion")
-    public ApiResponse<Void> requestDeletion(Authentication authentication) {
+    public ApiResponse<ArcoRequestResponse> requestDeletion(Authentication authentication) {
         User user = (User) authentication.getPrincipal();
-        passengerService.requestOwnDeletion(user);
-        return ApiResponse.ok("Tu cuenta quedo bloqueada y en revision para su eliminacion", null);
+        var request = passengerService.requestOwnDeletion(user);
+        return ApiResponse.ok("Tu cuenta quedo bloqueada y en revision para su eliminacion. Folio: " + request.folio(), request);
     }
 
     @GetMapping("/saved-places")

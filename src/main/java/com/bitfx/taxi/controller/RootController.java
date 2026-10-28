@@ -18,7 +18,7 @@ public class RootController {
     @GetMapping("/")
     public ApiResponse<Map<String, String>> root() {
         return ApiResponse.ok(
-                "NexoraTaxis API (BITFX). Este puerto es solo el backend; usa la aplicacion web (frontend) para operar el sistema.",
+                "NexoraTaxis API. Este puerto es solo el backend; usa la aplicacion web (frontend) para operar el sistema.",
                 Map.of("service", "taxiapp-backend", "status", "ok")
         );
     }

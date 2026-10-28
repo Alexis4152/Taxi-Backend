@@ -6,6 +6,7 @@ import com.bitfx.taxi.model.DriverProfile;
 import com.bitfx.taxi.model.PlatformSettings;
 import com.bitfx.taxi.model.Trip;
 import com.bitfx.taxi.model.User;
+import com.bitfx.taxi.repository.DriverLocationRepository;
 import com.bitfx.taxi.repository.DriverProfileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,7 @@ import java.time.LocalDateTime;
 public class DriverBillingService {
 
     private final DriverProfileRepository driverProfileRepository;
+    private final DriverLocationRepository driverLocationRepository;
     private final PlatformSettingsService platformSettingsService;
 
     /**
@@ -45,11 +47,27 @@ public class DriverBillingService {
         boolean hadNoDebtBefore = driver.getPendingAmount().signum() <= 0;
         driver.setPendingAmount(driver.getPendingAmount().add(tripDebt));
         driver.setUnpaidTripCount(driver.getUnpaidTripCount() + 1);
+        PlatformSettings settings = platformSettingsService.get();
         if (hadNoDebtBefore) {
-            int deadlineHour = platformSettingsService.get().getPaymentDeadlineHour();
-            driver.setPaymentDueAt(LocalDate.now().plusDays(1).atTime(deadlineHour, 0));
+            driver.setPaymentDueAt(LocalDate.now().plusDays(1).atTime(settings.getPaymentDeadlineHour(), 0));
+        }
+        // Si con este viaje llego al limite de viajes sin pagar, se bloquea en este momento - no hay
+        // que esperar a la revision periodica (blockOverdueDrivers), porque mientras tanto seguiria
+        // conectado y recibiendo solicitudes.
+        if (driver.getUnpaidTripCount() >= settings.getPaymentTripThreshold()) {
+            block(driver);
         }
         driverProfileRepository.save(driver);
+    }
+
+    // Bloquea al operador y lo saca de linea, para que deje de recibir solicitudes de inmediato
+    // (sin esperar a que su siguiente ping sea rechazado por assertNotBlocked).
+    private void block(DriverProfile driver) {
+        driver.setPaymentBlocked(true);
+        driverLocationRepository.findByDriver(driver).ifPresent(loc -> {
+            loc.setOnline(false);
+            driverLocationRepository.save(loc);
+        });
     }
 
     @Transactional
@@ -106,7 +124,7 @@ public class DriverBillingService {
             boolean pastDeadline = driver.getPaymentDueAt() != null && now.isAfter(driver.getPaymentDueAt());
             boolean overTripThreshold = driver.getUnpaidTripCount() >= tripThreshold;
             if (pastDeadline || overTripThreshold) {
-                driver.setPaymentBlocked(true);
+                block(driver);
                 driverProfileRepository.save(driver);
                 blocked++;
             }

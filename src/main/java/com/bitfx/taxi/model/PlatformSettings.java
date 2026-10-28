@@ -86,6 +86,13 @@ public class PlatformSettings {
     @Column(name = "fare_round_to_multiple_of_5", nullable = false)
     private boolean fareRoundToMultipleOf5;
 
+    // Si esta activo, se quitan los centavos redondeando al peso mas cercano (42.50 -> 43,
+    // 42.49 -> 42) tanto en la tarifa base como en los cobros de servicio, para que ni el total del
+    // pasajero ni lo que debe el operador tengan centavos. Si el multiplo de 5 tambien esta activo,
+    // la tarifa base usa ese (que ya queda en pesos enteros).
+    @Column(name = "fare_round_to_whole_peso", nullable = false)
+    private boolean fareRoundToWholePeso;
+
     // Si esta apagado, la tarjeta "Invita y gana" se oculta para todos los operadores y pasajeros
     // (ver ReferralCard) - prendido por default porque ya se mostraba a todos antes de este ajuste.
     @Column(name = "referral_program_enabled", nullable = false)

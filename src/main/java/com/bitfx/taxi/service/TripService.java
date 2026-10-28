@@ -87,8 +87,8 @@ public class TripService {
         RouteEstimate estimate = routingService.estimate(req.originLat(), req.originLng(), req.destinationLat(), req.destinationLng());
         var estimatedFare = fareService.estimateFare(null, estimate.distanceKm());
         PlatformSettings settings = platformSettingsService.get();
-        var passengerServiceFee = PlatformSettingsService.computeFee(settings.getPassengerFeeType(), settings.getPassengerFeeValue(), estimatedFare);
-        var operatorServiceFee = PlatformSettingsService.computeFee(settings.getOperatorFeeType(), settings.getOperatorFeeValue(), estimatedFare);
+        var passengerServiceFee = PlatformSettingsService.passengerFee(settings, estimatedFare);
+        var operatorServiceFee = PlatformSettingsService.operatorFee(settings, estimatedFare);
 
         Trip trip = Trip.builder()
                 .passenger(passenger)
@@ -153,8 +153,11 @@ public class TripService {
 
         List<Object[]> candidates = driverLocationRepository.findByOnlineTrue().stream()
                 .filter(loc -> loc.getDriver().isActive())
+                .filter(loc -> !loc.getDriver().isPaymentBlocked())
                 .filter(loc -> loc.getDriver().getTaxi() != null)
-                .filter(loc -> !tripRef.isRequiresWheelchairAccessible() || loc.getDriver().getTaxi().isWheelchairAccessible())
+                // Los requisitos del pasajero (silla de ruedas, mascota, etc.) NO filtran operadores:
+                // la oferta le llega a todos los cercanos marcada con esos requisitos, y cada uno
+                // decide si la acepta.
                 .filter(loc -> tripRepository.findFirstByDriverAndStatusIn(loc.getDriver(), ACTIVE_STATUSES).isEmpty())
                 .filter(loc -> tripOfferRepository.findByTripAndDriver(tripRef, loc.getDriver()).isEmpty())
                 .map(loc -> new Object[]{loc, GeoUtils.haversineKm(tripRef.getOriginLat(), tripRef.getOriginLng(), loc.getLat(), loc.getLng())})
@@ -221,7 +224,8 @@ public class TripService {
                 trip.getDistanceKm(), trip.getEstimatedFare(), trip.getPassengerServiceFee(), trip.getPaymentMethod().name(),
                 Math.round(distanceKm * 100) / 100.0, expiresInSeconds,
                 trip.getScheduledAt() != null,
-                trip.isBabySeat(), trip.isMoreThanFourPassengers(), trip.isHasPet(), trip.getSpecialComments()
+                trip.isBabySeat(), trip.isMoreThanFourPassengers(), trip.isHasPet(), trip.isRequiresWheelchairAccessible(),
+                trip.getSpecialComments()
         );
         tripNotifier.sendOfferToDriver(offer.getDriver().getId(), dto);
     }
@@ -235,6 +239,7 @@ public class TripService {
     @Transactional
     public void dispatchPendingTripsToNewlyOnlineDriver(DriverProfile driver) {
         if (!driver.isActive()) return;
+        if (driver.isPaymentBlocked()) return;
         if (driver.getTaxi() == null) return;
         if (tripRepository.findFirstByDriverAndStatusIn(driver, ACTIVE_STATUSES).isPresent()) return;
 
@@ -251,7 +256,6 @@ public class TripService {
                 }
                 continue;
             }
-            if (trip.isRequiresWheelchairAccessible() && !driver.getTaxi().isWheelchairAccessible()) continue;
             double distanceKm = GeoUtils.haversineKm(trip.getOriginLat(), trip.getOriginLng(), loc.getLat(), loc.getLng());
             if (distanceKm > searchRadiusKm) continue;
             sendOfferToDriver(trip, loc, distanceKm, expiresAt);
@@ -315,8 +319,8 @@ public class TripService {
         BigDecimal finalFare = fareService.estimateFare(driver.getOrganization(), trip.getDistanceKm());
         trip.setEstimatedFare(finalFare);
         PlatformSettings settings = platformSettingsService.get();
-        trip.setPassengerServiceFee(PlatformSettingsService.computeFee(settings.getPassengerFeeType(), settings.getPassengerFeeValue(), finalFare));
-        trip.setOperatorServiceFee(PlatformSettingsService.computeFee(settings.getOperatorFeeType(), settings.getOperatorFeeValue(), finalFare));
+        trip.setPassengerServiceFee(PlatformSettingsService.passengerFee(settings, finalFare));
+        trip.setOperatorServiceFee(PlatformSettingsService.operatorFee(settings, finalFare));
         try {
             // saveAndFlush (no solo save) para que un conflicto de version se detecte AQUI, en
             // vez de hasta el commit de la transaccion (fuera de este try/catch).
@@ -496,8 +500,8 @@ public class TripService {
         Organization org = trip.getDriver() != null ? trip.getDriver().getOrganization() : null;
         var estimatedFare = fareService.estimateFare(org, estimate.distanceKm());
         PlatformSettings settings = platformSettingsService.get();
-        var passengerServiceFee = PlatformSettingsService.computeFee(settings.getPassengerFeeType(), settings.getPassengerFeeValue(), estimatedFare);
-        var operatorServiceFee = PlatformSettingsService.computeFee(settings.getOperatorFeeType(), settings.getOperatorFeeValue(), estimatedFare);
+        var passengerServiceFee = PlatformSettingsService.passengerFee(settings, estimatedFare);
+        var operatorServiceFee = PlatformSettingsService.operatorFee(settings, estimatedFare);
 
         trip.setDistanceKm(estimate.distanceKm());
         trip.setDurationMin(estimate.durationMin());
@@ -540,6 +544,7 @@ public class TripService {
         double searchRadiusKm = platformSettingsService.get().getDispatchSearchRadiusKm();
         return driverLocationRepository.findByOnlineTrue().stream()
                 .filter(loc -> loc.getDriver().isActive())
+                .filter(loc -> !loc.getDriver().isPaymentBlocked())
                 .filter(loc -> loc.getDriver().getTaxi() != null)
                 .filter(loc -> tripRepository.findFirstByDriverAndStatusIn(loc.getDriver(), ACTIVE_STATUSES).isEmpty())
                 .filter(loc -> GeoUtils.haversineKm(lat, lng, loc.getLat(), loc.getLng()) <= searchRadiusKm)

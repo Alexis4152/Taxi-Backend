@@ -80,7 +80,7 @@ public class DataSeeder implements CommandLineRunner {
         }
         superAdmin = User.builder()
                 .phone(superAdminPhone)
-                .name("Super Admin BITFX")
+                .name("Super Admin NexoraTaxis")
                 .email(superAdminEmail)
                 .passwordHash(passwordEncoder.encode(superAdminPassword))
                 .role(Role.SUPER_ADMIN)
@@ -109,7 +109,7 @@ public class DataSeeder implements CommandLineRunner {
             return;
         }
         Organization org = organizationRepository.save(Organization.builder()
-                .name("Taxis Demo BITFX")
+                .name("Taxis Demo NexoraTaxis")
                 .contactPhone("5550000000")
                 .active(true)
                 .build());

@@ -35,7 +35,7 @@ class AuthIntegrationTest {
     @Test
     void refrescarLaSesionEnUnaPeticionSeparadaFuncionaSinLazyInitializationException() throws Exception {
         String phone = String.format("59%08d", System.currentTimeMillis() % 100000000L);
-        String registerBody = objectMapper.writeValueAsString(new RegisterPayload("Integration Test", phone, "Password123!", phone + "@ejemplo.com", true));
+        String registerBody = objectMapper.writeValueAsString(new RegisterPayload("Integration Test", phone, "Password123!", phone + "@ejemplo.com", true, true));
 
         MvcResult registerResult = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -58,7 +58,7 @@ class AuthIntegrationTest {
                 .andExpect(jsonPath("$.data.user.phone").value(phone));
     }
 
-    private record RegisterPayload(String name, String phone, String password, String email, boolean acceptedTerms) {
+    private record RegisterPayload(String name, String phone, String password, String email, boolean acceptedTerms, boolean acceptedPrivacy) {
     }
 
     private record RefreshPayload(String refreshToken) {

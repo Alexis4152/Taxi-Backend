@@ -16,6 +16,9 @@ public record RegisterPassengerRequest(
         String password,
         @NotBlank(message = "El correo es obligatorio") @Email(message = "Correo invalido") String email,
         @AssertTrue(message = "Debes aceptar los terminos y condiciones") boolean acceptedTerms,
+        @AssertTrue(message = "Debes aceptar el aviso de privacidad") boolean acceptedPrivacy,
+        // Consentimiento opcional para promociones/novedades (finalidad secundaria).
+        boolean marketingOptIn,
         // Opcional: codigo de otro usuario que lo invito. Si no existe o esta mal escrito, se
         // ignora en silencio (no bloquea el registro por un typo).
         String referralCode

@@ -2,19 +2,18 @@ package com.bitfx.taxi.service;
 
 import com.bitfx.taxi.dto.admin.AdminCreateDriverRequest;
 import com.bitfx.taxi.dto.admin.OnlineDriverSummary;
+import com.bitfx.taxi.dto.privacy.ArcoRequestResponse;
 import com.bitfx.taxi.exception.ApiException;
 import com.bitfx.taxi.model.*;
 import com.bitfx.taxi.repository.DriverLocationRepository;
 import com.bitfx.taxi.repository.DriverProfileRepository;
 import com.bitfx.taxi.repository.OrganizationRepository;
-import com.bitfx.taxi.repository.PasswordResetTokenRepository;
 import com.bitfx.taxi.repository.RefreshTokenRepository;
 import com.bitfx.taxi.repository.TaxiRepository;
 import com.bitfx.taxi.repository.TripRepository;
 import com.bitfx.taxi.repository.UserRepository;
 import com.bitfx.taxi.util.TokenGenerator;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -38,10 +37,13 @@ public class DriverService {
     private final EmailService emailService;
     private final OrganizationService organizationService;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final AccountAnonymizationService accountAnonymizationService;
+    private final ArcoRequestService arcoRequestService;
 
+    // Las cuentas ya anonimizadas no se listan: no queda nada que administrar en ellas.
     public List<DriverProfile> listForOrg(Organization org) {
-        return org != null ? driverProfileRepository.findByOrganization(org) : driverProfileRepository.findAll();
+        var drivers = org != null ? driverProfileRepository.findByOrganization(org) : driverProfileRepository.findAll();
+        return drivers.stream().filter(d -> d.getUser().getAnonymizedAt() == null).toList();
     }
 
     private static final List<TripStatus> ON_TRIP_STATUSES = List.of(TripStatus.ACCEPTED, TripStatus.IN_PROGRESS);
@@ -225,7 +227,7 @@ public class DriverService {
     // queda en revision para que el super admin la acepte (y en ese momento se borre definitivo) o
     // la rechace.
     @Transactional
-    public void requestOwnDeletion(User user) {
+    public ArcoRequestResponse requestOwnDeletion(User user) {
         DriverProfile driver = driverProfileRepository.findByUser_Id(user.getId())
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "No tienes un perfil de operador"));
         driver.setActive(false);
@@ -235,32 +237,19 @@ public class DriverService {
         user.setActive(false);
         userRepository.save(user);
         invalidateSessions(user);
+        return arcoRequestService.registerAccountDeletion(user);
     }
 
-    // Borrado definitivo - solo permitido si ya paso por markPendingDeletion. Si tiene viajes,
-    // calificaciones u otros registros ligados, la base de datos rechaza el borrado (no se hace
-    // cascada manual aqui para no perder historial por error) y se lo reportamos al admin.
+    // Eliminacion definitiva - solo permitida si ya paso por markPendingDeletion. Los datos
+    // personales se anonimizan en lugar de borrar las filas, para conservar el historial de viajes
+    // y cobros que la ley obliga a guardar (ver AccountAnonymizationService).
     @Transactional
-    public void deletePermanently(Long driverId) {
+    public void deletePermanently(Long driverId, User actingAdmin) {
         DriverProfile driver = getById(driverId);
         if (!driver.isPendingDeletion()) {
             throw new ApiException(HttpStatus.CONFLICT, "Primero debes marcarlo como pendiente de eliminacion");
         }
-        User user = driver.getUser();
-        try {
-            driverProfileRepository.delete(driver);
-            driverProfileRepository.flush();
-            // Puramente tecnicas (sesiones/tokens), no historial de negocio - se borran con la
-            // cuenta en vez de bloquear el borrado para siempre (toda cuenta que alguna vez inicio
-            // sesion tiene al menos una fila aqui).
-            refreshTokenRepository.deleteByUser(user);
-            passwordResetTokenRepository.deleteByUser(user);
-            userRepository.delete(user);
-            userRepository.flush();
-        } catch (DataIntegrityViolationException e) {
-            throw new ApiException(HttpStatus.CONFLICT,
-                    "No se puede eliminar: el operador tiene viajes u otros registros asociados. Permanece bloqueado como pendiente de eliminacion.");
-        }
+        accountAnonymizationService.anonymizeDriver(driver, actingAdmin);
     }
 
     private Organization resolveOrganization(Long organizationId) {

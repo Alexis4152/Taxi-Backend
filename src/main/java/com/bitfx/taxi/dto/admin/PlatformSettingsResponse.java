@@ -17,6 +17,7 @@ public record PlatformSettingsResponse(
         int paymentDeadlineHour,
         int paymentTripThreshold,
         boolean fareRoundToMultipleOf5,
+        boolean fareRoundToWholePeso,
         boolean referralProgramEnabled
 ) {
     public static PlatformSettingsResponse from(PlatformSettings s) {
@@ -32,6 +33,7 @@ public record PlatformSettingsResponse(
                 s.getPaymentDeadlineHour(),
                 s.getPaymentTripThreshold(),
                 s.isFareRoundToMultipleOf5(),
+                s.isFareRoundToWholePeso(),
                 s.isReferralProgramEnabled()
         );
     }

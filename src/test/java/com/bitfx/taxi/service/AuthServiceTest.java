@@ -68,7 +68,7 @@ class AuthServiceTest {
         when(userRepository.existsByPhone("5512345678")).thenReturn(false);
         when(passwordEncoder.encode("Password123!")).thenReturn("hashed");
 
-        var req = new RegisterPassengerRequest("Juan Perez", "5512345678", "Password123!", null, true, null);
+        var req = new RegisterPassengerRequest("Juan Perez", "5512345678", "Password123!", null, true, true, false, null);
         var result = authService.registerPassenger(req);
 
         assertNotNull(result.accessToken());
@@ -81,7 +81,7 @@ class AuthServiceTest {
     void noPermiteRegistrarUnTelefonoYaUsado() {
         when(userRepository.existsByPhone("5512345678")).thenReturn(true);
 
-        var req = new RegisterPassengerRequest("Juan Perez", "5512345678", "Password123!", null, true, null);
+        var req = new RegisterPassengerRequest("Juan Perez", "5512345678", "Password123!", null, true, true, false, null);
 
         assertThrows(ApiException.class, () -> authService.registerPassenger(req));
     }

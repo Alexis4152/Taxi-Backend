@@ -58,6 +58,22 @@ public class User implements UserDetails {
     @Column(name = "terms_accepted_at")
     private LocalDateTime termsAcceptedAt;
 
+    // Aceptacion del aviso de privacidad (LFPDPPP), independiente de los terminos y condiciones.
+    // NULL en cuentas creadas antes de que existiera: se les pide aceptarlo al entrar.
+    @Column(name = "privacy_accepted_at")
+    private LocalDateTime privacyAcceptedAt;
+
+    // Consentimiento opcional para finalidades secundarias (promociones, novedades). Se puede
+    // retirar en cualquier momento sin afectar el servicio.
+    @Column(name = "marketing_opt_in", nullable = false)
+    @Builder.Default
+    private boolean marketingOptIn = false;
+
+    // Fecha en que la cuenta fue anonimizada al aprobarse su eliminacion (derecho de cancelacion) -
+    // ver AccountAnonymizationService. Una cuenta anonimizada ya no aparece en los listados.
+    @Column(name = "anonymized_at")
+    private LocalDateTime anonymizedAt;
+
     // Codigo corto propio para invitar a otros (ver ReferralService); se genera una sola vez al
     // registrarse y no cambia despues.
     @Column(name = "referral_code", unique = true, length = 10)

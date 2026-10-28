@@ -1,16 +1,13 @@
 package com.bitfx.taxi.service;
 
+import com.bitfx.taxi.dto.privacy.ArcoRequestResponse;
 import com.bitfx.taxi.exception.ApiException;
 import com.bitfx.taxi.model.PassengerProfile;
 import com.bitfx.taxi.model.User;
 import com.bitfx.taxi.repository.PassengerProfileRepository;
-import com.bitfx.taxi.repository.PasswordResetTokenRepository;
 import com.bitfx.taxi.repository.RefreshTokenRepository;
-import com.bitfx.taxi.repository.SavedPlaceRepository;
-import com.bitfx.taxi.repository.TrustedContactRepository;
 import com.bitfx.taxi.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,9 +21,8 @@ public class PassengerService {
     private final PassengerProfileRepository passengerProfileRepository;
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final PasswordResetTokenRepository passwordResetTokenRepository;
-    private final SavedPlaceRepository savedPlaceRepository;
-    private final TrustedContactRepository trustedContactRepository;
+    private final AccountAnonymizationService accountAnonymizationService;
+    private final ArcoRequestService arcoRequestService;
 
     public PassengerProfile getByUserId(Long userId) {
         return passengerProfileRepository.findByUser_Id(userId)
@@ -41,8 +37,11 @@ public class PassengerService {
         return passengerProfileRepository.save(profile);
     }
 
+    // Las cuentas ya anonimizadas no se listan: no queda nada que administrar en ellas.
     public List<PassengerProfile> listAll() {
-        return passengerProfileRepository.findAll();
+        return passengerProfileRepository.findAll().stream()
+                .filter(p -> p.getUser().getAnonymizedAt() == null)
+                .toList();
     }
 
     public PassengerProfile getById(Long id) {
@@ -96,7 +95,7 @@ public class PassengerService {
     // queda en revision para que el super admin la acepte (y en ese momento se borre definitivo) o
     // la rechace.
     @Transactional
-    public void requestOwnDeletion(User user) {
+    public ArcoRequestResponse requestOwnDeletion(User user) {
         PassengerProfile profile = passengerProfileRepository.findByUser_Id(user.getId())
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "No tienes un perfil de pasajero"));
         profile.getUser().setActive(false);
@@ -105,33 +104,18 @@ public class PassengerService {
         profile.setDeactivationReason("El usuario solicito la eliminacion de su cuenta");
         passengerProfileRepository.save(profile);
         invalidateSessions(profile.getUser());
+        return arcoRequestService.registerAccountDeletion(profile.getUser());
     }
 
-    // Borrado definitivo - solo permitido si ya paso por markPendingDeletion (admin o el propio
-    // usuario). Si tiene viajes, calificaciones u otros registros ligados, la base de datos
-    // rechaza el borrado (no se hace cascada manual aqui para no perder historial por error).
+    // Eliminacion definitiva - solo permitida si ya paso por markPendingDeletion (admin o el propio
+    // usuario). Los datos personales se anonimizan en lugar de borrar las filas, para conservar el
+    // historial de viajes que la ley obliga a guardar (ver AccountAnonymizationService).
     @Transactional
-    public void deletePermanently(Long id) {
+    public void deletePermanently(Long id, User actingAdmin) {
         PassengerProfile profile = getById(id);
         if (!profile.isPendingDeletion()) {
             throw new ApiException(HttpStatus.CONFLICT, "Primero debe marcarse como pendiente de eliminacion");
         }
-        User user = profile.getUser();
-        try {
-            passengerProfileRepository.delete(profile);
-            passengerProfileRepository.flush();
-            // Datos personales de conveniencia (no historial de negocio): se borran con la cuenta.
-            savedPlaceRepository.deleteByPassenger(user);
-            trustedContactRepository.deleteByPassenger(user);
-            // Puramente tecnicas (sesiones/tokens) - toda cuenta que alguna vez inicio sesion tiene
-            // al menos una fila aqui, asi que sin esto el borrado nunca podria completarse.
-            refreshTokenRepository.deleteByUser(user);
-            passwordResetTokenRepository.deleteByUser(user);
-            userRepository.delete(user);
-            userRepository.flush();
-        } catch (DataIntegrityViolationException e) {
-            throw new ApiException(HttpStatus.CONFLICT,
-                    "No se puede eliminar: el usuario tiene viajes u otros registros asociados. Permanece bloqueado como pendiente de eliminacion.");
-        }
+        accountAnonymizationService.anonymizePassenger(profile, actingAdmin);
     }
 }

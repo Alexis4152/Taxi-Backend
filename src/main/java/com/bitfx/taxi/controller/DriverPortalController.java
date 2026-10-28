@@ -12,6 +12,7 @@ import com.bitfx.taxi.dto.trip.TripHistoryItemDto;
 import com.bitfx.taxi.dto.trip.TripResponseDto;
 import com.bitfx.taxi.dto.admin.TaxiChangeRequestDto;
 import com.bitfx.taxi.dto.admin.TaxiChangeRequestResponse;
+import com.bitfx.taxi.dto.privacy.ArcoRequestResponse;
 import com.bitfx.taxi.exception.ApiException;
 import com.bitfx.taxi.model.DriverProfile;
 import com.bitfx.taxi.model.User;
@@ -89,10 +90,10 @@ public class DriverPortalController {
     }
 
     @PostMapping("/request-deletion")
-    public ApiResponse<Void> requestDeletion(Authentication authentication) {
+    public ApiResponse<ArcoRequestResponse> requestDeletion(Authentication authentication) {
         User user = (User) authentication.getPrincipal();
-        driverService.requestOwnDeletion(user);
-        return ApiResponse.ok("Tu cuenta quedo bloqueada y en revision para su eliminacion", null);
+        var request = driverService.requestOwnDeletion(user);
+        return ApiResponse.ok("Tu cuenta quedo bloqueada y en revision para su eliminacion. Folio: " + request.folio(), request);
     }
 
     @PostMapping("/taxi-change-requests")

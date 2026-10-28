@@ -3,6 +3,8 @@ package com.bitfx.taxi.dto.auth;
 import com.bitfx.taxi.model.Role;
 import com.bitfx.taxi.model.User;
 
+import java.time.LocalDateTime;
+
 public record UserSummary(
         Long id,
         String name,
@@ -16,7 +18,9 @@ public record UserSummary(
         Long driverId,
         CurrentTaxiSummary currentTaxi,
         Double lastKnownLat,
-        Double lastKnownLng
+        Double lastKnownLng,
+        LocalDateTime privacyAcceptedAt,
+        boolean marketingOptIn
 ) {
     public static UserSummary from(User user) {
         return from(user, null, null);
@@ -36,7 +40,9 @@ public record UserSummary(
                 driverId,
                 currentTaxi,
                 user.getLastKnownLat(),
-                user.getLastKnownLng()
+                user.getLastKnownLng(),
+                user.getPrivacyAcceptedAt(),
+                user.isMarketingOptIn()
         );
     }
 }

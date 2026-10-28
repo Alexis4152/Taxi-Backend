@@ -115,9 +115,9 @@ public class DriverController {
     }
 
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> deletePermanently(@PathVariable Long id) {
-        driverService.deletePermanently(id);
-        return ApiResponse.ok("Operador eliminado permanentemente", null);
+    public ApiResponse<Void> deletePermanently(@PathVariable Long id, Authentication authentication) {
+        driverService.deletePermanently(id, (User) authentication.getPrincipal());
+        return ApiResponse.ok("Operador eliminado: sus datos personales fueron anonimizados", null);
     }
 
     @PostMapping("/{id}/mark-paid")
